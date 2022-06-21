@@ -27,7 +27,7 @@ import (
 	_ "github.com/glebarez/go-sqlite"
 	template "github.com/google/safehtml/template"
 
-	"transcode-factory/ffwrap"
+	"github.com/gitgerby/transcode-factory/ffwrap"
 )
 
 type TranscodeRequest struct {
@@ -76,29 +76,29 @@ table {
 </style>
 </head>
 <body>
-	<table>
-		<tr>
-			<th>Job ID</th>
-			<th>Source</th>
-			<th>Destination</th>
-			<th>CRF</th>
-			<th>autocrop</th>
-			<th>SRT Files</th>
-		</tr>
-		{{range .}}
-			<tr>
-				<td>{{.Id}}</td>
-				<td>{{.JobDefinition.Source}}</td>
-				<td>{{.JobDefinition.Destination}}</td>
-				<td>{{.JobDefinition.Crf}}</td>
-				<td>{{.JobDefinition.Autocrop}}</td>
-				<td>
-				{{range .JobDefinition.Srt_files}}
-				{{.}}<br>
-				{{end}}</td>
-			</tr>
-		{{end}}
-	</table>
+  <table>
+    <tr>
+      <th>Job ID</th>
+      <th>Source</th>
+      <th>Destination</th>
+      <th>CRF</th>
+      <th>autocrop</th>
+      <th>SRT Files</th>
+    </tr>
+    {{range .}}
+      <tr>
+        <td>{{.Id}}</td>
+        <td>{{.JobDefinition.Source}}</td>
+        <td>{{.JobDefinition.Destination}}</td>
+        <td>{{.JobDefinition.Crf}}</td>
+        <td>{{.JobDefinition.Autocrop}}</td>
+        <td>
+        {{range .JobDefinition.Srt_files}}
+        {{.}}<br>
+        {{end}}</td>
+      </tr>
+    {{end}}
+  </table>
 </body>
 `
 
@@ -184,26 +184,36 @@ func initdb() error {
 	defer db.Close()
 
 	if _, err := db.Exec(`
-	CREATE TABLE IF NOT EXISTS transcode_queue (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		source TEXT,
-		destination TEXT,
-		crf INTEGER,
-		srt_files BLOB,
-		autocrop TEXT
-	);
+  CREATE TABLE IF NOT EXISTS transcode_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT,
+    destination TEXT,
+    crf INTEGER,
+    srt_files BLOB,
+    autocrop TEXT
+  );
 
-	DROP TABLE IF EXISTS active_job;
-	CREATE TABLE IF NOT EXISTS active_job (
-		ffmpeg_pid INTEGER,
-		current_frame INTEGER,
-		total_frames INTEGER,
-		filter TEXT,
-		heartbeat BLOB,
-		id INTEGER,
-		FOREIGN KEY (id)
-			REFERENCES transcode_queue (id)
-	);`); err != nil {
+  DROP TABLE IF EXISTS active_job;
+  CREATE TABLE IF NOT EXISTS active_job (
+    ffmpeg_pid INTEGER,
+    current_frame INTEGER,
+    total_frames INTEGER,
+    filter TEXT,
+    heartbeat BLOB,
+    id INTEGER,
+    FOREIGN KEY (id)
+      REFERENCES transcode_queue (id)
+  );
+  
+  CREATE TABLE IF NOT EXISTS completed_jobs (
+    id INTEGER PRIMARY KEY
+    source TEXT,
+    destination TEXT,
+    crf INTEGER,
+    srt_files BLOB,
+    autocrop TEXT,
+    filter TEXT);
+    `); err != nil {
 		return err
 	}
 	return nil
@@ -217,10 +227,12 @@ func run() {
 	defer db.Close()
 
 	niq := `
-	SELECT id, source, destination, IFNULL(crf,17) as crf, IFNULL(autocrop,1) as autocrop, srt_files
-	FROM transcode_queue 
-	ORDER BY id ASC
-	LIMIT 1;`
+  SELECT id, source, destination, IFNULL(crf,17) as crf, IFNULL(autocrop,1) as autocrop, srt_files
+  FROM transcode_queue
+  WHERE id NOT IN (SELECT id FROM completed_jobs)
+    AND id NOT IN (SELECT id FROM active_job)
+  ORDER BY id ASC
+  LIMIT 1;`
 
 	for {
 		r := db.QueryRow(niq)
@@ -233,7 +245,11 @@ func run() {
 		json.Unmarshal(srtj, &tj.JobDefinition.Srt_files)
 
 		if tj.JobDefinition.Autocrop {
-			c := ffwrap.DetectCrop(tj.JobDefinition.Source)
+			c, err := ffwrap.DetectCrop(tj.JobDefinition.Source)
+			if err != nil {
+				db.Exec()
+			}
+
 			strings.Join([]string{c})
 		}
 	}
