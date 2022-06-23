@@ -107,7 +107,11 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 	}
 	defer db.Close()
 
-	rows, err := db.Query("SELECT id, source, destination, IFNULL(crf,17), IFNULL(autocrop,1), srt_files FROM transcode_queue ORDER BY id ASC")
+	rows, err := db.Query(`
+	SELECT id, source, destination, IFNULL(crf,17), IFNULL(autocrop,1), srt_files 
+	FROM transcode_queue 
+	ORDER BY id ASC
+	`)
 	if err != nil {
 		fmt.Fprintf(w, "%v+", err)
 	}
@@ -143,7 +147,10 @@ func newtranscode(w http.ResponseWriter, req *http.Request) {
 	}
 	defer db.Close()
 
-	stmt, err := db.Prepare(`INSERT INTO transcode_queue(source, destination, srt_files, autocrop, filter) VALUES(?, ?, ?, ?, ?)`)
+	stmt, err := db.Prepare(`
+	INSERT INTO transcode_queue(source, destination, srt_files, autocrop, filter)
+	VALUES(?, ?, ?, ?, ?)
+	`)
 	if err != nil {
 		fmt.Fprintf(w, "failed to prepare sql: %v", err)
 	}
