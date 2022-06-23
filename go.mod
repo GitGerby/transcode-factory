@@ -8,6 +8,7 @@ require (
 )
 
 require (
+	github.com/google/logger v1.1.1
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 // indirect

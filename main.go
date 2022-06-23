@@ -17,17 +17,16 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"database/sql"
 
 	_ "github.com/glebarez/go-sqlite"
+	"github.com/google/logger"
 	template "github.com/google/safehtml/template"
-
-	"github.com/gitgerby/transcode-factory/ffwrap"
 )
 
 type TranscodeRequest struct {
@@ -190,15 +189,19 @@ func initdb() error {
     destination TEXT,
     crf INTEGER,
     srt_files BLOB,
-    autocrop TEXT
+		video_filters TEXT,
+		audio_filters TEXT,
+    autocrop INTEGER
   );
 
   DROP TABLE IF EXISTS active_job;
   CREATE TABLE IF NOT EXISTS active_job (
     ffmpeg_pid INTEGER,
+		job_state INTEGER,
     current_frame INTEGER,
     total_frames INTEGER,
-    filter TEXT,
+    vfilter TEXT,
+		afilter TEXT,
     heartbeat BLOB,
     id INTEGER,
     FOREIGN KEY (id)
@@ -209,10 +212,9 @@ func initdb() error {
     id INTEGER PRIMARY KEY
     source TEXT,
     destination TEXT,
-    crf INTEGER,
+    autocrop INTEGER,
     srt_files BLOB,
-    autocrop TEXT,
-    filter TEXT);
+    ffmpegargs BLOB;
     `); err != nil {
 		return err
 	}
@@ -237,32 +239,32 @@ func run() {
 	for {
 		r := db.QueryRow(niq)
 		var tj TranscodeJob
-		var srtj []byte
-		if err := r.Scan(&tj.Id, &tj.JobDefinition.Source, &tj.JobDefinition.Destination, &tj.JobDefinition.Crf, &tj.JobDefinition.Autocrop, srtj); err == sql.ErrNoRows {
-			time.Sleep(30 * time.Second)
+
+		if err := r.Scan(&tj.Id); err == sql.ErrNoRows {
+			time.Sleep(10 * time.Second)
 			continue
 		}
-		json.Unmarshal(srtj, &tj.JobDefinition.Srt_files)
 
-		if tj.JobDefinition.Autocrop {
-			c, err := ffwrap.DetectCrop(tj.JobDefinition.Source)
-			if err != nil {
-				db.Exec()
-			}
-
-			strings.Join([]string{c})
+		if err := updatejobstatus(db, tj.Id, Submitted); err != nil {
+			logger.Errorf("failed to mark job active: %v", err)
+			continue
 		}
 	}
 }
 
-func main() {
-	if err := initdb(); err != nil {
-		fmt.Printf("init error: %v", err)
-		os.Exit(1)
-	}
+func launchapi() {
 	http.HandleFunc("/status", display_rows)
 	http.HandleFunc("/enqueue", newtranscode)
 	http.HandleFunc("/headers", headers)
 	go http.ListenAndServe(":51218", nil)
+}
+
+func main() {
+	logger.Init("transcode-factory", false, true, ioutil.Discard)
+	if err := initdb(); err != nil {
+		fmt.Printf("init error: %v", err)
+		os.Exit(1)
+	}
+	launchapi()
 	run()
 }
