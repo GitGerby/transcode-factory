@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"time"
 
 	"database/sql"
@@ -137,14 +136,6 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 	t.Execute(w, data)
 }
 
-func headers(w http.ResponseWriter, req *http.Request) {
-	for name, headers := range req.Header {
-		for _, h := range headers {
-			fmt.Fprintf(w, "%v: %v\n", name, h)
-		}
-	}
-}
-
 func newtranscode(w http.ResponseWriter, req *http.Request) {
 	db, err := sql.Open("sqlite", databasefile)
 	if err != nil {
@@ -253,17 +244,15 @@ func run() {
 }
 
 func launchapi() {
-	http.HandleFunc("/status", display_rows)
+	http.HandleFunc("/statusz", display_rows)
 	http.HandleFunc("/enqueue", newtranscode)
-	http.HandleFunc("/headers", headers)
 	go http.ListenAndServe(":51218", nil)
 }
 
 func main() {
 	logger.Init("transcode-factory", false, true, ioutil.Discard)
 	if err := initdb(); err != nil {
-		fmt.Printf("init error: %v", err)
-		os.Exit(1)
+		logger.Fatalf("failed to prepare database: %v", err)
 	}
 	launchapi()
 	run()
