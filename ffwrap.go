@@ -19,11 +19,12 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 const (
 	ffmpegbinary  = "f:/ffmpeg/ffmpeg.exe"
-	ffprobebinary = "f:/ffmpeg/ffprobe.exe"
+	ffprobebinary = "X:/other/tools/ffmpeg-gyan/ffmpeg-2022-02-28-git-7a4840a8ca-full_build/bin/ffprobe.exe"
 )
 
 var (
@@ -57,19 +58,16 @@ func detectCrop(s string) (string, error) {
 
 func countFrames(s string) (int, error) {
 	args := []string{
-		"-v", "error", "-select_stream", "v:0", "-count_frames", "-show_entries",
-		"stream=nb_read_frames ", "-print_format", "default=nokey=1:noprint_wrappers=1",
+		"-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries",
+		"stream=nb_read_frames ", "-print_format", "default=nokey=1:noprint_wrappers=1", s,
 	}
 	cmd := exec.Command(ffprobebinary, args...)
-	if err := cmd.Run(); err != nil {
+	o, err := cmd.CombinedOutput()
+	if err != nil {
 		return 0, fmt.Errorf("failed to count frames: %v", err)
 	}
 	if cmd.ProcessState.ExitCode() != 0 {
 		return 0, fmt.Errorf("ffprobe exited with nonzero exit code: %q", cmd.ProcessState.ExitCode())
 	}
-	o, err := cmd.CombinedOutput()
-	if err != nil {
-		return 0, fmt.Errorf("failed to obtain output from ffprobe: %q", err)
-	}
-	return strconv.Atoi(string(o))
+	return strconv.Atoi(strings.TrimSpace(string(o)))
 }

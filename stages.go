@@ -13,19 +13,19 @@ func updatejobstatus(db *sql.DB, id int, js JobState) error {
 	}
 
 	i, err := tx.Prepare(`
-	INSERT OR IGNORE INTO active_job (id)
-	VALUES (?)
-	`)
+  INSERT OR IGNORE INTO active_job (id)
+  VALUES (?)
+  `)
 	if err != nil {
 		return fmt.Errorf("failed to prepare sql statement: %q", err)
 	}
 	defer i.Close()
 
 	u, err := tx.Prepare(`
-	UPDATE active_job
-	SET job_state = ?
-	WHERE id = ?
-	`)
+  UPDATE active_job
+  SET job_state = ?
+  WHERE id = ?
+  `)
 	if err != nil {
 		return fmt.Errorf("failed to prepare sql statement: %q", err)
 	}
@@ -43,11 +43,11 @@ func updatejobstatus(db *sql.DB, id int, js JobState) error {
 }
 
 func updatetotalframes(db *sql.DB, id int) error {
-	sq := "SELECT source WHERE id = ?"
+	sq := "SELECT source FROM transcode_queue WHERE id = ?;"
 	rs := db.QueryRow(sq, id)
 	var s string
-	if err := rs.Scan(s); err != nil {
-		return err
+	if err := rs.Scan(&s); err != nil {
+		return fmt.Errorf("failed to query source file for index %q: %q", id, err)
 	}
 
 	fc, err := countFrames(s)
@@ -68,10 +68,10 @@ func updatetotalframes(db *sql.DB, id int) error {
 }
 
 func addCrop(db *sql.DB, id int) error {
-	sq := "SELECT source WHERE id = ?"
+	sq := "SELECT source FROM transcode_queue WHERE id = ?"
 	rs := db.QueryRow(sq, id)
 	var s string
-	if err := rs.Scan(s); err != nil {
+	if err := rs.Scan(&s); err != nil {
 		return err
 	}
 

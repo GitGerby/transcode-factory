@@ -108,10 +108,10 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 	defer db.Close()
 
 	rows, err := db.Query(`
-	SELECT id, source, destination, IFNULL(crf,17), IFNULL(autocrop,1), srt_files 
-	FROM transcode_queue 
-	ORDER BY id ASC
-	`)
+  SELECT id, source, destination, IFNULL(crf,17), IFNULL(autocrop,1), srt_files 
+  FROM transcode_queue 
+  ORDER BY id ASC
+  `)
 	if err != nil {
 		fmt.Fprintf(w, "%v+", err)
 	}
@@ -148,9 +148,9 @@ func newtranscode(w http.ResponseWriter, req *http.Request) {
 	defer db.Close()
 
 	stmt, err := db.Prepare(`
-	INSERT INTO transcode_queue(source, destination, srt_files, autocrop, filter)
-	VALUES(?, ?, ?, ?, ?)
-	`)
+  INSERT INTO transcode_queue(source, destination, srt_files, autocrop, filter)
+  VALUES(?, ?, ?, ?, ?)
+  `)
 	if err != nil {
 		fmt.Fprintf(w, "failed to prepare sql: %v", err)
 	}
@@ -187,21 +187,21 @@ func initdb() error {
     destination TEXT,
     crf INTEGER,
     srt_files BLOB,
-		video_filters TEXT,
-		audio_filters TEXT,
+    video_filters TEXT,
+    audio_filters TEXT,
     autocrop INTEGER
   );
 
   DROP TABLE IF EXISTS active_job;
   CREATE TABLE IF NOT EXISTS active_job (
     ffmpeg_pid INTEGER,
-		job_state INTEGER,
+    job_state INTEGER,
     current_frame INTEGER,
     total_frames INTEGER,
     vfilter TEXT,
-		afilter TEXT,
+    afilter TEXT,
     heartbeat BLOB,
-    id INTEGER,
+    id INTEGER PRIMARY KEY,
     FOREIGN KEY (id)
       REFERENCES transcode_queue (id)
   );
@@ -213,7 +213,7 @@ func initdb() error {
     autocrop INTEGER,
     srt_files BLOB,
     ffmpegargs BLOB
-		);
+    );
     `); err != nil {
 		return err
 	}
@@ -228,7 +228,7 @@ func run() {
 	defer db.Close()
 
 	niq := `
-  SELECT id, source, IFNULL(autocrop,1) as autocrop
+  SELECT id, IFNULL(autocrop,1) as autocrop
   FROM transcode_queue
   WHERE id NOT IN (SELECT id FROM completed_jobs)
     AND id NOT IN (SELECT id FROM active_job)
@@ -254,14 +254,15 @@ func run() {
 			continue
 		}
 		if tj.JobDefinition.Autocrop {
+			updatejobstatus(db, tj.Id, CropDetect)
 			if err := addCrop(db, tj.Id); err != nil {
 				logger.Errorf("updatefilters failed on job %q: %q", tj.Id, err)
 			}
 		} /* else {
-			tx, err := db.Begin()
-			tx.Exec()
+		     tx, err := db.Begin()
+		     tx.Exec()
 
-		}
+		   }
 		*/
 
 	}
