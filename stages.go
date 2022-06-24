@@ -49,7 +49,7 @@ func updatetotalframes(db *sql.DB, id int) error {
 		return err
 	}
 
-	fc, err := ffwrap.CountFrames(s)
+	fc, err := countFrames(s)
 
 	tx, err := db.Begin()
 	if err != nil {

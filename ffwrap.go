@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package ffwrap
+package main
 
 import (
 	"bytes"
@@ -21,17 +21,19 @@ import (
 	"strconv"
 	"strings"
 )
-var (
+
+const (
   ffmpegbinary = "f:/ffmpeg/ffmpeg.exe"
   ffprobebinary = "f:/ffmpeg/ffprobe.exe"
-  ffquiet = []string{"-hide_banner", "-loglevel", "error"}
-  ffcommon = []string{"-probesize", "6000M", "-analyzeduration", "6000M"}
   cdregex = regexp.MustCompile('t:[\d]*.*?(crop=[-\d:]*)')
 )
-const (
+
+var (
+  ffquiet = []string{"-hide_banner", "-loglevel", "error"}
+  ffcommon = []string{"-probesize", "6000M", "-analyzeduration", "6000M"}
 )
 
-func DetectCrop(s string) (string, error) {
+func detectCrop(s string) (string, error) {
   var args []string
   args = append(args, "-hide_banner", ffcommon...)
   args = append(args, "-i", s, "-vf", "cropdetect=round=2", "-t", "300", "-f", "null", "NUL")
@@ -50,7 +52,7 @@ func DetectCrop(s string) (string, error) {
   return m[len(m)-1][1],nil
 }
 
-func CountFrames(s string) (int, error) {
+func countFrames(s string) (int, error) {
   args := []string{
     "-v", "error", "-select_stream", "v:0", "-count_frames", "-show_entries", 
     "stream=nb_read_frames ", "-print_format", "default=nokey=1:noprint_wrappers=1",
