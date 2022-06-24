@@ -212,7 +212,8 @@ func initdb() error {
     destination TEXT,
     autocrop INTEGER,
     srt_files BLOB,
-    ffmpegargs BLOB;
+    ffmpegargs BLOB
+		);
     `); err != nil {
 		return err
 	}
@@ -256,7 +257,13 @@ func run() {
 			if err := addCrop(db, tj.Id); err != nil {
 				logger.Errorf("updatefilters failed on job %q: %q", tj.Id, err)
 			}
+		} /* else {
+			tx, err := db.Begin()
+			tx.Exec()
+
 		}
+		*/
+
 	}
 }
 
