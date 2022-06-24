@@ -207,7 +207,7 @@ func initdb() error {
   );
   
   CREATE TABLE IF NOT EXISTS completed_jobs (
-    id INTEGER PRIMARY KEY
+    id INTEGER PRIMARY KEY,
     source TEXT,
     destination TEXT,
     autocrop INTEGER,
