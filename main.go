@@ -176,7 +176,7 @@ func newtranscode(w http.ResponseWriter, req *http.Request) {
 func initdb() error {
 	db, err := sql.Open("sqlite", databasefile)
 	if err != nil {
-		fmt.Printf("failed to connect to db: %v", err)
+		return fmt.Errorf("failed to connect to db: %v", err)
 	}
 	defer db.Close()
 
@@ -222,12 +222,12 @@ func initdb() error {
 func run() {
 	db, err := sql.Open("sqlite", databasefile)
 	if err != nil {
-		fmt.Printf("failed to connect to db: %v", err)
+		logger.Fatalf("failed to connect to db: %v", err)
 	}
 	defer db.Close()
 
 	niq := `
-  SELECT id, source, destination, IFNULL(crf,17) as crf, IFNULL(autocrop,1) as autocrop, srt_files
+  SELECT id, source, IFNULL(autocrop,1) as autocrop
   FROM transcode_queue
   WHERE id NOT IN (SELECT id FROM completed_jobs)
     AND id NOT IN (SELECT id FROM active_job)
@@ -238,7 +238,7 @@ func run() {
 		r := db.QueryRow(niq)
 		var tj TranscodeJob
 
-		if err := r.Scan(&tj.Id); err == sql.ErrNoRows {
+		if err := r.Scan(&tj.Id, &tj.JobDefinition.Autocrop); err == sql.ErrNoRows {
 			time.Sleep(10 * time.Second)
 			continue
 		}
@@ -248,8 +248,14 @@ func run() {
 			continue
 		}
 
-		if err := updatetotalframes; err != nil {
+		if err := updatetotalframes(db, tj.Id); err != nil {
 			logger.Errorf("failed to determine number of frames in file: %v", err)
+			continue
+		}
+		if tj.JobDefinition.Autocrop {
+			if err := addCrop(db, tj.Id); err != nil {
+				logger.Errorf("updatefilters failed on job %q: %q", tj.Id, err)
+			}
 		}
 	}
 }
