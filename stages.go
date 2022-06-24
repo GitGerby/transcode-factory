@@ -13,7 +13,7 @@ func updatejobstatus(db *sql.DB, id int, js JobState) error {
 	}
 
 	i, err := tx.Prepare(`
-	INSERT OR IGNORE INTO active_jobs (id)
+	INSERT OR IGNORE INTO active_job (id)
 	VALUES (?)
 	`)
 	if err != nil {
@@ -22,7 +22,7 @@ func updatejobstatus(db *sql.DB, id int, js JobState) error {
 	defer i.Close()
 
 	u, err := tx.Prepare(`
-	UPDATE active_jobs
+	UPDATE active_job
 	SET job_state = ?
 	WHERE id = ?
 	`)
@@ -33,7 +33,7 @@ func updatejobstatus(db *sql.DB, id int, js JobState) error {
 
 	_, err = i.Exec(id)
 	if err != nil {
-		return fmt.Errorf("failed to add job to active_jobs table: %q, rollback result: %q", err, tx.Rollback())
+		return fmt.Errorf("failed to add job to active_job table: %q, rollback result: %q", err, tx.Rollback())
 	}
 	_, err = u.Exec(js, id)
 	if err != nil {
