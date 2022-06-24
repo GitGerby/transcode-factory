@@ -8,7 +8,7 @@ import (
 func updatejobstatus(db *sql.DB, id int, js JobState) error {
 	tx, err := db.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %v", err)
+		return fmt.Errorf("failed to begin transaction: %q", err)
 	}
 
 	i, err := tx.Prepare(`
@@ -16,7 +16,7 @@ func updatejobstatus(db *sql.DB, id int, js JobState) error {
 	VALUES (?)
 	`)
 	if err != nil {
-		return fmt.Errorf("failed to prepare sql statement: %v", err)
+		return fmt.Errorf("failed to prepare sql statement: %q", err)
 	}
 	defer i.Close()
 
@@ -26,19 +26,39 @@ func updatejobstatus(db *sql.DB, id int, js JobState) error {
 	WHERE id = ?
 	`)
 	if err != nil {
-		return fmt.Errorf("failed to prepare sql statement: %v", err)
+		return fmt.Errorf("failed to prepare sql statement: %q", err)
 	}
 	defer u.Close()
 
 	_, err = i.Exec(id)
 	if err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to add job to active_jobs table: %v", err)
+		return fmt.Errorf("failed to add job to active_jobs table: %q, rollback result: %q", err, tx.Rollback())
 	}
 	_, err = u.Exec(js, id)
 	if err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to update job state: %v", err)
+		return fmt.Errorf("failed to update job state: %q, rollback result: %q", err, tx.Rollback())
+	}
+	return tx.Commit()
+}
+
+func updatetotalframes(db *sql.DB, id int) error {
+	sq := "SELECT source WHERE id = ?"
+	rs := db.QueryRow(sq, id)
+	var s string
+	if err := rs.Scan(s); err != nil {
+		return err
+	}
+
+	fc, err := ffwrap.CountFrames(s)
+
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %q", err)
+	}
+	_, err = tx.Exec("UPDATE active_job SET total_frames = ? WHERE id = ?", fc, id)
+	if err != nil {
+		return fmt.Errorf("failed to update total_frames: %q, rollback: %q", err, tx.Rollback())
+
 	}
 	return tx.Commit()
 }

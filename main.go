@@ -247,6 +247,10 @@ func run() {
 			logger.Errorf("failed to mark job active: %v", err)
 			continue
 		}
+
+		if err := updatetotalframes; err != nil {
+			logger.Errorf("failed to determine number of frames in file: %v", err)
+		}
 	}
 }
 

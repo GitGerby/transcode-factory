@@ -14,11 +14,12 @@
 package ffwrap
 
 import (
-  "bytes"
-  "fmt"
-  "os/exec"
-  "regexp"
-  "strings"
+	"bytes"
+	"fmt"
+	"os/exec"
+	"regexp"
+	"strconv"
+	"strings"
 )
 var (
   ffmpegbinary = "f:/ffmpeg/ffmpeg.exe"
@@ -49,3 +50,17 @@ func DetectCrop(s string) (string, error) {
   return m[len(m)-1][1],nil
 }
 
+func CountFrames(s string) (int, error) {
+  args := []string{
+    "-v", "error", "-select_stream", "v:0", "-count_frames", "-show_entries", 
+    "stream=nb_read_frames ", "-print_format", "default=nokey=1:noprint_wrappers=1",
+  }
+  cmd := exec.Command(ffprobebinary, args...)
+  if err := cmd.Run(); err != nil {
+    return "", fmt.Errorf("failed to count frames: %v",err)
+  }
+  if cmd.ProcessState.ExitCode() {
+    return "", fmt.Errorf("failed to count frames: %v",err)
+  }
+  return strconv.Atoi(cmd.CombinedOutput())
+}
