@@ -20,6 +20,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/google/logger"
 )
 
 const (
@@ -58,9 +60,10 @@ func detectCrop(s string) (string, error) {
 
 func countFrames(s string) (int, error) {
 	args := []string{
-		"-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries",
+		"-threads", "16", "-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries",
 		"stream=nb_read_frames ", "-print_format", "default=nokey=1:noprint_wrappers=1", s,
 	}
+	logger.Infof("calling ffprobe with: %#v", args)
 	cmd := exec.Command(ffprobebinary, args...)
 	o, err := cmd.CombinedOutput()
 	if err != nil {

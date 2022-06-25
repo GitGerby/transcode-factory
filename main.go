@@ -15,7 +15,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -25,23 +24,25 @@ import (
 
 	_ "github.com/glebarez/go-sqlite"
 	"github.com/google/logger"
-	template "github.com/google/safehtml/template"
 )
 
 type TranscodeRequest struct {
-	Source      string   `json:"source"`
-	Destination string   `json:"destination"`
-	Srt_files   []string `json:"srt_files"`
-	Crf         int      `json:"crf"`
-	Autocrop    bool     `json:"autocrop"`
-	Filter      string   `json:"filter"`
+	Source        string   `json:"source"`
+	Destination   string   `json:"destination"`
+	Srt_files     []string `json:"srt_files"`
+	Crf           int      `json:"crf"`
+	Autocrop      bool     `json:"autocrop"`
+	Video_filters string   `json:"video_filters"`
+	Audio_filters string   `json:"audio_filters"`
 }
 
 type JobState int
 
 const (
 	Submitted JobState = iota
-	CropDetect
+	QueryingSource
+	BuildVideoFilter
+	BuildAudioFilter
 	Transcoding
 	Complete
 	Failed
@@ -57,121 +58,6 @@ type TranscodeJob struct {
 var (
 	databasefile = "//citadel.somuchcrypto.com/media/other/transcode-factory.db"
 )
-
-const html_template = `
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-table, td, th {
-  border: 1px solid;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-</style>
-</head>
-<body>
-  <table>
-    <tr>
-      <th>Job ID</th>
-      <th>Source</th>
-      <th>Destination</th>
-      <th>CRF</th>
-      <th>autocrop</th>
-      <th>SRT Files</th>
-    </tr>
-    {{range .}}
-      <tr>
-        <td>{{.Id}}</td>
-        <td>{{.JobDefinition.Source}}</td>
-        <td>{{.JobDefinition.Destination}}</td>
-        <td>{{.JobDefinition.Crf}}</td>
-        <td>{{.JobDefinition.Autocrop}}</td>
-        <td>
-        {{range .JobDefinition.Srt_files}}
-        {{.}}<br>
-        {{end}}</td>
-      </tr>
-    {{end}}
-  </table>
-</body>
-`
-
-func display_rows(w http.ResponseWriter, req *http.Request) {
-	db, err := sql.Open("sqlite", databasefile)
-	if err != nil {
-		fmt.Fprintf(w, "failed to connect to db: %v", err)
-	}
-	defer db.Close()
-
-	rows, err := db.Query(`
-  SELECT id, source, destination, IFNULL(crf,17), IFNULL(autocrop,1), srt_files 
-  FROM transcode_queue 
-  ORDER BY id ASC
-  `)
-	if err != nil {
-		fmt.Fprintf(w, "%v+", err)
-	}
-	defer rows.Close()
-
-	var data []TranscodeJob
-	for rows.Next() {
-		var r TranscodeJob
-		var srtj []byte
-		err := rows.Scan(&r.Id, &r.JobDefinition.Source, &r.JobDefinition.Destination, &r.JobDefinition.Crf, &r.JobDefinition.Autocrop, &srtj)
-		if err != nil {
-			fmt.Fprintf(w, "fatal error scanning db response: %#v", err)
-			return
-		}
-
-		json.Unmarshal(srtj, &r.JobDefinition.Srt_files)
-
-		data = append(data, r)
-	}
-	rows.Close()
-
-	t, err := template.New("results").Parse(html_template)
-	if err != nil {
-		fmt.Fprintf(w, "fatal error parsing template: %v+", err)
-	}
-	t.Execute(w, data)
-}
-
-func newtranscode(w http.ResponseWriter, req *http.Request) {
-	db, err := sql.Open("sqlite", databasefile)
-	if err != nil {
-		fmt.Fprintf(w, "failed to connect to db: %v", err)
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(`
-  INSERT INTO transcode_queue(source, destination, srt_files, autocrop, filter)
-  VALUES(?, ?, ?, ?, ?)
-  `)
-	if err != nil {
-		fmt.Fprintf(w, "failed to prepare sql: %v", err)
-	}
-	defer stmt.Close()
-
-	var j TranscodeRequest
-	err = json.NewDecoder(req.Body).Decode(&j)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-	}
-
-	s, err := json.Marshal(j.Srt_files)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-	}
-	i, err := stmt.Exec(j.Source, j.Destination, s, j.Autocrop, j.Filter)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-	}
-	fmt.Fprintf(w, "%#v", i)
-}
 
 func initdb() error {
 	db, err := sql.Open("sqlite", databasefile)
@@ -244,26 +130,42 @@ func run() {
 			continue
 		}
 
+		logger.Infof("job id %d: beginning processing", tj.Id)
 		if err := updatejobstatus(db, tj.Id, Submitted); err != nil {
 			logger.Errorf("failed to mark job active: %v", err)
 			continue
 		}
 
+		logger.Infof("job id %d: determining length in frames", tj.Id)
 		if err := updatetotalframes(db, tj.Id); err != nil {
 			logger.Errorf("failed to determine number of frames in file: %v", err)
 			continue
 		}
-		if tj.JobDefinition.Autocrop {
-			updatejobstatus(db, tj.Id, CropDetect)
-			if err := addCrop(db, tj.Id); err != nil {
-				logger.Errorf("updatefilters failed on job %q: %q", tj.Id, err)
-			}
-		} /* else {
-		     tx, err := db.Begin()
-		     tx.Exec()
 
-		   }
-		*/
+		logger.Infof("job id %d: building video filter graph", tj.Id)
+		updatejobstatus(db, tj.Id, BuildVideoFilter)
+		if tj.JobDefinition.Autocrop {
+			if err := addCrop(db, tj.Id); err != nil {
+				logger.Errorf("updatefilters failed on job %d: %q", tj.Id, err)
+			}
+		} else {
+			tx, err := db.Begin()
+			if err != nil {
+				logger.Errorf("failed to begin transaction: %q", err)
+			}
+			_, err = tx.Exec("UPDATE active_job SET vfilter = (SELECT video_filters FROM transcode_queue WHERE id =?)", tj.Id)
+			if err != nil {
+				logger.Errorf("failed to copy video filters to active job: %q, rollback: %q", err, tx.Rollback())
+			}
+			if err = tx.Commit(); err != nil {
+				logger.Errorf("failed to commit transaction: %q", err)
+				tx.Rollback()
+			}
+		}
+
+		logger.Infof("job id %d: beginning transcode", tj.Id)
+		updatejobstatus(db, tj.Id, Transcoding)
+		// transcodefile(db, tj)
 
 	}
 }
@@ -275,7 +177,7 @@ func launchapi() {
 }
 
 func main() {
-	logger.Init("transcode-factory", false, true, ioutil.Discard)
+	logger.Init("transcode-factory", true, true, ioutil.Discard)
 	if err := initdb(); err != nil {
 		logger.Fatalf("failed to prepare database: %v", err)
 	}
