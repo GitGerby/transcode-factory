@@ -80,10 +80,11 @@ func (w dbUpdateWriter) Write(p []byte) (int, error) {
 	return w.CombinedOutput.Write(p)
 }
 
-func detectCrop(s string) (string, error) {
+func detectCrop(s string, hwaccel bool) (string, error) {
 	var args []string
 	args = append(args, "-hide_banner")
 	args = append(args, ffcommon...)
+
 	args = append(args, "-i", s, "-vf", "cropdetect=round=2", "-t", "300", "-f", "null", "NUL")
 
 	var sout, serr bytes.Buffer

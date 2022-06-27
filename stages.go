@@ -112,23 +112,23 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 }
 
 func addCrop(tj *TranscodeJob) error {
+	var h bool
+	if strings.ToLower(tj.SourceMeta.Codec) == "vc1" {
+		h = true
+	} else {
+		h = false
+	}
+
+	c, err := detectCrop(tj.JobDefinition.Source, h)
+	if err != nil {
+		return err
+	}
+
 	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %q", err)
 	}
 	defer tx.Rollback()
-
-	sq := "SELECT source FROM transcode_queue WHERE id = ?"
-	rs := db.QueryRow(sq, tj.Id)
-	var s string
-	if err := rs.Scan(&s); err != nil {
-		return err
-	}
-
-	c, err := detectCrop(s)
-	if err != nil {
-		return err
-	}
 
 	tj.JobDefinition.Video_filters = strings.Join([]string{c, tj.JobDefinition.Video_filters}, ";")
 
