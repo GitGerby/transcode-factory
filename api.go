@@ -68,12 +68,6 @@ table {
 `
 
 func display_rows(w http.ResponseWriter, req *http.Request) {
-	db, err := sql.Open("sqlite", databasefile)
-	if err != nil {
-		fmt.Fprintf(w, "failed to connect to db: %v", err)
-	}
-	defer db.Close()
-
 	rows, err := db.Query(`
   SELECT id, source, destination, IFNULL(crf,17), IFNULL(autocrop,1), srt_files 
   FROM transcode_queue 

@@ -34,13 +34,25 @@ type TranscodeRequest struct {
 	Autocrop      bool     `json:"autocrop"`
 	Video_filters string   `json:"video_filters"`
 	Audio_filters string   `json:"audio_filters"`
+	Codec         string   `json:"codec"`
+}
+
+type TranscodeJob struct {
+	Id            int
+	JobDefinition TranscodeRequest
+	SourceMeta    MediaMetadata
+}
+
+type MediaMetadata struct {
+	TotalFrames int
+	Codec       string
 }
 
 type JobState int
 
 const (
 	Submitted JobState = iota
-	QueryingSource
+	ExaminingSource
 	BuildVideoFilter
 	BuildAudioFilter
 	Transcoding
@@ -48,15 +60,9 @@ const (
 	Failed
 )
 
-type TranscodeJob struct {
-	Id            int
-	JobDefinition TranscodeRequest
-	PID           int
-	State         JobState
-}
-
 var (
 	databasefile = "//citadel.somuchcrypto.com/media/other/transcode-factory.db"
+	db           *sql.DB
 )
 
 func initdb() error {
@@ -107,45 +113,31 @@ func initdb() error {
 }
 
 func run() {
-	db, err := sql.Open("sqlite", databasefile)
-	if err != nil {
-		logger.Fatalf("failed to connect to db: %v", err)
-	}
-	defer db.Close()
-
-	niq := `
-  SELECT id, IFNULL(autocrop,1) as autocrop
-  FROM transcode_queue
-  WHERE id NOT IN (SELECT id FROM completed_jobs)
-    AND id NOT IN (SELECT id FROM active_job)
-  ORDER BY id ASC
-  LIMIT 1;`
-
 	for {
-		r := db.QueryRow(niq)
-		var tj TranscodeJob
-
-		if err := r.Scan(&tj.Id, &tj.JobDefinition.Autocrop); err == sql.ErrNoRows {
+		tj, err := pullNextJob()
+		if err == sql.ErrNoRows {
 			time.Sleep(10 * time.Second)
 			continue
+		} else if err != nil {
+			logger.Fatalf("failed to pull next work item: %q", err)
 		}
 
 		logger.Infof("job id %d: beginning processing", tj.Id)
-		if err := updatejobstatus(db, tj.Id, Submitted); err != nil {
+		if err := updateJobStatus(tj.Id, ExaminingSource); err != nil {
 			logger.Errorf("failed to mark job active: %v", err)
 			continue
 		}
 
 		logger.Infof("job id %d: determining length in frames", tj.Id)
-		if err := updatetotalframes(db, tj.Id); err != nil {
+		if err := updateSourceMetadata(&tj); err != nil {
 			logger.Errorf("failed to determine number of frames in file: %v", err)
 			continue
 		}
 
 		logger.Infof("job id %d: building video filter graph", tj.Id)
-		updatejobstatus(db, tj.Id, BuildVideoFilter)
+		updateJobStatus(tj.Id, BuildVideoFilter)
 		if tj.JobDefinition.Autocrop {
-			if err := addCrop(db, tj.Id); err != nil {
+			if err := addCrop(&tj); err != nil {
 				logger.Errorf("updatefilters failed on job %d: %q", tj.Id, err)
 			}
 		} else {
@@ -164,9 +156,10 @@ func run() {
 		}
 
 		logger.Infof("job id %d: beginning transcode", tj.Id)
-		updatejobstatus(db, tj.Id, Transcoding)
-		// transcodefile(db, tj)
-
+		updateJobStatus(tj.Id, Transcoding)
+		if err := transcodeMedia(tj); err != nil {
+			logger.Errorf("transcodeMedia() error: %q", err)
+		}
 	}
 }
 
