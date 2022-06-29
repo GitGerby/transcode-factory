@@ -15,7 +15,6 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -66,12 +65,6 @@ var (
 )
 
 func initdb() error {
-	db, err := sql.Open("sqlite", databasefile)
-	if err != nil {
-		return fmt.Errorf("failed to connect to db: %v", err)
-	}
-	defer db.Close()
-
 	if _, err := db.Exec(`
   CREATE TABLE IF NOT EXISTS transcode_queue (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,6 +72,7 @@ func initdb() error {
     destination TEXT,
     crf INTEGER,
     srt_files BLOB,
+		codec TEXT,
     video_filters TEXT,
     audio_filters TEXT,
     autocrop INTEGER
@@ -92,7 +86,7 @@ func initdb() error {
     total_frames INTEGER,
     vfilter TEXT,
     afilter TEXT,
-    heartbeat BLOB,
+    source_codec TEXT,
     id INTEGER PRIMARY KEY,
     FOREIGN KEY (id)
       REFERENCES transcode_queue (id)
@@ -157,9 +151,12 @@ func run() {
 
 		logger.Infof("job id %d: beginning transcode", tj.Id)
 		updateJobStatus(tj.Id, Transcoding)
-		if err := transcodeMedia(tj); err != nil {
+		if err := transcodeMedia(&tj); err != nil {
 			logger.Errorf("transcodeMedia() error: %q", err)
+			updateJobStatus(tj.Id, Failed)
 		}
+
+		logger.Infof("job id %d: complete", tj.Id)
 	}
 }
 
@@ -171,6 +168,12 @@ func launchapi() {
 
 func main() {
 	logger.Init("transcode-factory", true, true, ioutil.Discard)
+	var err error
+	db, err = sql.Open("sqlite", databasefile)
+	if err != nil {
+		logger.Fatalf("failed to connect to db: %v", err)
+	}
+	defer db.Close()
 	if err := initdb(); err != nil {
 		logger.Fatalf("failed to prepare database: %v", err)
 	}

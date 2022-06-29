@@ -114,8 +114,8 @@ func newtranscode(w http.ResponseWriter, req *http.Request) {
 	}
 
 	stmt, err := tx.Prepare(`
-  INSERT INTO transcode_queue(source, destination, crf, srt_files, autocrop, video_filters, audio_filters)
-  VALUES(?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO transcode_queue(source, destination, crf, srt_files, autocrop, video_filters, audio_filters, codec)
+  VALUES(?, ?, ?, ?, ?, ?, ?, ?)
   `)
 	if err != nil {
 		tx.Rollback()
@@ -137,7 +137,7 @@ func newtranscode(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	i, err := stmt.Exec(j.Source, j.Destination, j.Crf, s, j.Autocrop, j.Video_filters, j.Audio_filters)
+	i, err := stmt.Exec(j.Source, j.Destination, j.Crf, s, j.Autocrop, j.Video_filters, j.Audio_filters, j.Codec)
 	if err != nil {
 		tx.Rollback()
 		http.Error(w, err.Error(), http.StatusBadRequest)

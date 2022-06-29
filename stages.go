@@ -18,6 +18,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/logger"
@@ -35,11 +37,14 @@ func pullNextJob() (TranscodeJob, error) {
 	r := db.QueryRow(niq)
 	var tj TranscodeJob
 	var subs []byte
-	if err := r.Scan(&tj.Id, &tj.JobDefinition.Source, &tj.JobDefinition.Destination, &tj.JobDefinition.Crf, &subs, &tj.JobDefinition.Autocrop, &tj.JobDefinition.Video_filters, &tj.JobDefinition.Audio_filters, &tj.JobDefinition.Codec); err == sql.ErrNoRows {
+	err := r.Scan(&tj.Id, &tj.JobDefinition.Source, &tj.JobDefinition.Destination, &tj.JobDefinition.Crf, &subs, &tj.JobDefinition.Autocrop, &tj.JobDefinition.Video_filters, &tj.JobDefinition.Audio_filters, &tj.JobDefinition.Codec)
+	if err == sql.ErrNoRows {
 		return TranscodeJob{}, err
+	} else if err != nil {
+		return TranscodeJob{}, fmt.Errorf("db query error: %q", err)
 	}
 
-	err := json.Unmarshal(subs, &tj.JobDefinition.Srt_files)
+	err = json.Unmarshal(subs, &tj.JobDefinition.Srt_files)
 	if err != nil {
 		logger.Errorf("failed to unmarshal srt files: %q", err)
 	}
@@ -102,7 +107,7 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 		return fmt.Errorf("countFrames returned: %q", err)
 	}
 
-	_, err = tx.Exec("UPDATE active_job SET total_frames = ?, codec = ? WHERE id = ?", fc.TotalFrames, fc.Codec, tj.Id)
+	_, err = tx.Exec("UPDATE active_job SET total_frames = ?, source_codec = ? WHERE id = ?", fc.TotalFrames, fc.Codec, tj.Id)
 	if err != nil {
 		return fmt.Errorf("failed to update total_frames: %q", err)
 	}
@@ -130,11 +135,26 @@ func addCrop(tj *TranscodeJob) error {
 	}
 	defer tx.Rollback()
 
-	tj.JobDefinition.Video_filters = strings.Join([]string{c, tj.JobDefinition.Video_filters}, ";")
+	if tj.JobDefinition.Video_filters != "" {
+		tj.JobDefinition.Video_filters = strings.Join([]string{c, tj.JobDefinition.Video_filters}, ";")
+	} else {
+		tj.JobDefinition.Video_filters = c
+	}
 
 	_, err = tx.Exec("UPDATE active_job SET vfilter = ? WHERE id = ?", tj.JobDefinition.Video_filters, tj.Id)
 	if err != nil {
 		return fmt.Errorf("failed to update vfilter: %q", err)
 	}
 	return tx.Commit()
+}
+
+func transcodeMedia(tj *TranscodeJob) error {
+	// make sure the dest directory exists or create it
+
+	logger.Infof("making path: %s", filepath.Dir(tj.JobDefinition.Destination))
+	err := os.MkdirAll(filepath.Dir(tj.JobDefinition.Destination), 0664)
+	if err != nil {
+		return fmt.Errorf("failed to create destination directory: %q", err)
+	}
+	return ffmpegTranscode(*tj)
 }
