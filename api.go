@@ -52,20 +52,57 @@ table {
 	<h2>Active Job</h2>
 	<table>
 		<tr>
+			<th>
+				Job ID:
+			</th>
 			<td>
-				Job ID: {{.ActiveJob.Id}} <br>
-				Source: {{.ActiveJob.JobDefinition.Source}}<br>
-				Subtitles: <ol>
-				{{range .ActiveJob.JobDefinition.Srt_files}}
-					<li>{{.}}</li>
-				{{end}}
+				{{.ActiveJob.Id}}
+			</td>
+			<th>
+				Stage:
+			</th>
+			<td>
+				{{.ActiveJob.State}}
+			</td>
+		</tr>
+		<tr>
+			<th>
+				Source:
+			</th>
+			<td> 
+				{{.ActiveJob.JobDefinition.Source}} 
+			</td>
+			<th>
+				CRF:
+			</th>
+			<td>
+				{{.ActiveJob.JobDefinition.Crf}}
+			</td>
+		</tr>
+		<tr>
+			<th>
+				Destination:
+			</th>
+			<td>
+				{{.ActiveJob.JobDefinition.Destination}}<br>
+			</td>
+			<th>
+				Video Filter:
+			</th>
+			<td>
+				{{.ActiveJob.JobDefinition.Video_filters}}
+			</td>
+		</tr>
+		<tr>
+			<th>
+				Subtitles:
+			</th>
+			<td>
+				<ol>
+					{{range .ActiveJob.JobDefinition.Srt_files}}
+						<li>{{.}}</li>
+					{{end}}
 				</ol>
-				Destination: {{.ActiveJob.JobDefinition.Destination}}<br>
-				</td>
-			<td>
-				Stage: {{.ActiveJob.State}}<br>
-				CRF: {{.ActiveJob.JobDefinition.Crf}}<br>
-				Video Filter: {{.ActiveJob.JobDefinition.Video_filters}}<br>
 			</td>
 		</tr>
 	</table>
