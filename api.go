@@ -24,6 +24,13 @@ import (
 	template "github.com/google/safehtml/template"
 )
 
+type PageData struct {
+	ActiveJob      TranscodeJob
+	TranscodeQueue []TranscodeJob
+	CompletedJobs  []TranscodeJob
+	QueueLength    int
+}
+
 const html_template = `
 <!DOCTYPE html>
 <html>
@@ -41,6 +48,29 @@ table {
 </style>
 </head>
 <body>
+	<h1>transcode-factory status</h1><br>
+	<h2>Active Job</h2>
+	<table>
+		<tr>
+			<td>
+				Job ID: {{.ActiveJob.Id}} <br>
+				Source: {{.ActiveJob.JobDefinition.Source}}<br>
+				Subtitles: <ol>
+				{{range .ActiveJob.JobDefinition.Srt_files}}
+					<li>{{.}}</li>
+				{{end}}
+				</ol>
+				Destination: {{.ActiveJob.JobDefinition.Destination}}<br>
+				</td>
+			<td>
+				Stage: {{.ActiveJob.State}}<br>
+				CRF: {{.ActiveJob.JobDefinition.Crf}}<br>
+				Video Filter: {{.ActiveJob.JobDefinition.Video_filters}}<br>
+			</td>
+		</tr>
+	</table>
+	<h2>Current Queue</h2><br>
+	QueueLength: {{.QueueLength}}
   <table>
     <tr>
       <th>Job ID</th>
@@ -50,7 +80,7 @@ table {
       <th>autocrop</th>
       <th>SRT Files</th>
     </tr>
-    {{range .}}
+    {{range .TranscodeQueue}}
       <tr>
         <td>{{.Id}}</td>
         <td>{{.JobDefinition.Source}}</td>
@@ -67,38 +97,70 @@ table {
 </body>
 `
 
+// const html_template = `{{ printf "%#v" .ActiveJob}}`
+
 func display_rows(w http.ResponseWriter, req *http.Request) {
-	rows, err := db.Query(`
-  SELECT id, source, destination, IFNULL(crf,17), IFNULL(autocrop,1), srt_files 
-  FROM transcode_queue 
+	// setup required variables
+	var srtj []byte
+	page := PageData{}
+	tx, err := db.Begin()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer tx.Commit()
+
+	// first query for queue items
+	q, err := tx.Query(`
+  SELECT id, source, destination, IFNULL(crf,18), IFNULL(autocrop,1), srt_files 
+  FROM transcode_queue
+	WHERE id not in (SELECT id FROM active_job)
   ORDER BY id ASC
   `)
 	if err != nil {
-		fmt.Fprintf(w, "%v+", err)
+		fmt.Fprintf(w, "%+v", err)
 	}
-	defer rows.Close()
+	defer q.Close()
 
-	var data []TranscodeJob
-	for rows.Next() {
+	// parse queue into datastructure
+	for q.Next() {
 		var r TranscodeJob
-		var srtj []byte
-		err := rows.Scan(&r.Id, &r.JobDefinition.Source, &r.JobDefinition.Destination, &r.JobDefinition.Crf, &r.JobDefinition.Autocrop, &srtj)
+		err := q.Scan(&r.Id, &r.JobDefinition.Source, &r.JobDefinition.Destination, &r.JobDefinition.Crf, &r.JobDefinition.Autocrop, &srtj)
 		if err != nil {
-			fmt.Fprintf(w, "fatal error scanning db response: %#v", err)
+			fmt.Fprintf(w, "fatal error scanning db response for queue: %#v", err)
 			return
 		}
 
-		json.Unmarshal(srtj, &r.JobDefinition.Srt_files)
+		if err := json.Unmarshal(srtj, &r.JobDefinition.Srt_files); err != nil {
+			http.Error(w, "failed to unmarshall queue srt file", http.StatusInternalServerError)
+		}
 
-		data = append(data, r)
+		page.TranscodeQueue = append(page.TranscodeQueue, r)
 	}
-	rows.Close()
+	q.Close()
 
+	a := tx.QueryRow(`
+	SELECT transcode_queue.id, source, destination, job_state, IFNULL(current_frame,0), IFNULL(total_frames,0), IFNULL(vfilter,'empty'), srt_files, crf
+	FROM transcode_queue JOIN active_job ON transcode_queue.id = active_job.id`)
+
+	err = a.Scan(&page.ActiveJob.Id, &page.ActiveJob.JobDefinition.Source, &page.ActiveJob.JobDefinition.Destination, &page.ActiveJob.State, &page.ActiveJob.CurrentFrame, &page.ActiveJob.SourceMeta.TotalFrames, &page.ActiveJob.JobDefinition.Video_filters, &srtj, &page.ActiveJob.JobDefinition.Crf)
+	if err != nil {
+		fmt.Fprintf(w, "fatal error scanning db response for active job: %#v", err)
+		return
+	}
+	if err := json.Unmarshal(srtj, &page.ActiveJob.JobDefinition.Srt_files); err != nil {
+		http.Error(w, "failed to unmarshall active job srt file", http.StatusInternalServerError)
+	}
+
+	page.QueueLength = len(page.TranscodeQueue)
 	t, err := template.New("results").Parse(html_template)
 	if err != nil {
 		fmt.Fprintf(w, "fatal error parsing template: %v+", err)
 	}
-	t.Execute(w, data)
+
+	if err := t.Execute(w, page); err != nil {
+		logger.Errorf("template failed: %q", err)
+	}
 }
 
 func newtranscode(w http.ResponseWriter, req *http.Request) {

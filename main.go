@@ -25,6 +25,29 @@ import (
 	"github.com/google/logger"
 )
 
+/*
+type program struct{}
+
+func (p *program) Start(s service.Service) error {
+	err := initdb()
+	if err != nil {
+		return err
+	}
+	go launchapi()
+	go p.Run()
+	return nil
+}
+
+func (p *program) Run() error {
+	mainLoop()
+	return nil
+}
+
+func (p *program) Stop(s service.Service) error {
+	db.Close()
+	return nil
+}
+*/
 type TranscodeRequest struct {
 	Source        string   `json:"source"`
 	Destination   string   `json:"destination"`
@@ -34,12 +57,15 @@ type TranscodeRequest struct {
 	Video_filters string   `json:"video_filters"`
 	Audio_filters string   `json:"audio_filters"`
 	Codec         string   `json:"codec"`
+	CurrentFrame  int
 }
 
 type TranscodeJob struct {
 	Id            int
 	JobDefinition TranscodeRequest
 	SourceMeta    MediaMetadata
+	State         JobState
+	CurrentFrame  int
 }
 
 type MediaMetadata struct {
@@ -60,7 +86,8 @@ const (
 )
 
 var (
-	databasefile = "//citadel.somuchcrypto.com/media/other/transcode-factory.db"
+	// databasefile = "//citadel.somuchcrypto.com/media/other/transcode-factory.db"
+	databasefile = "f:/transcode-factory.db"
 	db           *sql.DB
 )
 
@@ -87,6 +114,7 @@ func initdb() error {
     vfilter TEXT,
     afilter TEXT,
     source_codec TEXT,
+		speed TEXT,
     id INTEGER PRIMARY KEY,
     FOREIGN KEY (id)
       REFERENCES transcode_queue (id)
@@ -97,8 +125,8 @@ func initdb() error {
     source TEXT,
     destination TEXT,
     autocrop INTEGER,
-    srt_files BLOB,
-    ffmpegargs BLOB
+    ffmpegargs TEXT,
+		status INTEGER
     );
     `); err != nil {
 		return err
@@ -106,7 +134,7 @@ func initdb() error {
 	return nil
 }
 
-func run() {
+func mainLoop() {
 	for {
 		tj, err := pullNextJob()
 		if err == sql.ErrNoRows {
@@ -119,12 +147,20 @@ func run() {
 		logger.Infof("job id %d: beginning processing", tj.Id)
 		if err := updateJobStatus(tj.Id, ExaminingSource); err != nil {
 			logger.Errorf("failed to mark job active: %v", err)
+			tj.State = Failed
+			if err := finishJob(&tj, nil); err != nil {
+				logger.Fatal("failed to cleanup job: %q", err)
+			}
 			continue
 		}
 
 		logger.Infof("job id %d: determining length in frames", tj.Id)
 		if err := updateSourceMetadata(&tj); err != nil {
 			logger.Errorf("failed to determine number of frames in file: %v", err)
+			tj.State = Failed
+			if err := finishJob(&tj, nil); err != nil {
+				logger.Fatal("failed to cleanup job: %q", err)
+			}
 			continue
 		}
 
@@ -133,36 +169,65 @@ func run() {
 		if tj.JobDefinition.Autocrop {
 			if err := addCrop(&tj); err != nil {
 				logger.Errorf("updatefilters failed on job %d: %q", tj.Id, err)
+				tj.State = Failed
+				if err := finishJob(&tj, nil); err != nil {
+					logger.Fatal("failed to cleanup job: %q", err)
+				}
+				continue
 			}
 		} else {
 			tx, err := db.Begin()
 			if err != nil {
 				logger.Errorf("failed to begin transaction: %q", err)
+				tj.State = Failed
+				if err := finishJob(&tj, nil); err != nil {
+					logger.Fatal("failed to cleanup job: %q", err)
+				}
+				continue
 			}
 			_, err = tx.Exec("UPDATE active_job SET vfilter = (SELECT video_filters FROM transcode_queue WHERE id =?)", tj.Id)
 			if err != nil {
 				logger.Errorf("failed to copy video filters to active job: %q, rollback: %q", err, tx.Rollback())
+				tj.State = Failed
+				if err := finishJob(&tj, nil); err != nil {
+					logger.Fatal("failed to cleanup job: %q", err)
+				}
+				continue
 			}
 			if err = tx.Commit(); err != nil {
 				logger.Errorf("failed to commit transaction: %q", err)
 				tx.Rollback()
+				tj.State = Failed
+				if err := finishJob(&tj, nil); err != nil {
+					logger.Fatal("failed to cleanup job: %q", err)
+				}
+				continue
 			}
 		}
 
 		logger.Infof("job id %d: beginning transcode", tj.Id)
 		updateJobStatus(tj.Id, Transcoding)
-		if err := transcodeMedia(&tj); err != nil {
+
+		args, err := transcodeMedia(&tj)
+		if err != nil {
 			logger.Errorf("transcodeMedia() error: %q", err)
-			updateJobStatus(tj.Id, Failed)
+			tj.State = Failed
+			if err := finishJob(&tj, nil); err != nil {
+				logger.Fatalf("failed to cleanup job: %q", err)
+			}
+			continue
 		}
 
+		updateJobStatus(tj.Id, Complete)
+		tj.State = Complete
+		finishJob(&tj, args)
 		logger.Infof("job id %d: complete", tj.Id)
 	}
 }
 
 func launchapi() {
 	http.HandleFunc("/statusz", display_rows)
-	http.HandleFunc("/enqueue", newtranscode)
+	http.HandleFunc("/add", newtranscode)
 	go http.ListenAndServe(":51218", nil)
 }
 
@@ -177,6 +242,23 @@ func main() {
 	if err := initdb(); err != nil {
 		logger.Fatalf("failed to prepare database: %v", err)
 	}
+
 	launchapi()
-	run()
+	mainLoop()
+	/*
+		svConfig := &service.Config{
+			Name:        "Transcode-Factory",
+			DisplayName: "Transcode-Factory",
+			Description: "Service to automatically invoke ffmpeg.",
+		}
+		prg := &program{}
+		s, err := service.New(prg, svConfig)
+		if err != nil {
+			logger.Fatal(err)
+		}
+		if err := s.Run(); err != nil {
+			logger.Fatalf("%q", err)
+		}
+		return
+	*/
 }

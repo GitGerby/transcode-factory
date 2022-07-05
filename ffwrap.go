@@ -14,12 +14,13 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os/exec"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/google/logger"
@@ -34,59 +35,42 @@ type FfprobeStreams struct {
 	Frames string `json:"nb_read_frames"`
 }
 
-// dbUpdateWrite fulfills the write closer interface so we can write progress
-// updates to the database as ffmpeg runs.
-type dbUpdateWriter struct {
-	CombinedOutput bytes.Buffer
-	JobId          int
-}
-
 const (
-	ffmpegbinary  = "X:/other/tools/ffmpeg-gyan/ffmpeg-2022-02-28-git-7a4840a8ca-full_build/bin/ffmpeg.exe"
-	ffprobebinary = "X:/other/tools/ffmpeg-gyan/ffmpeg-2022-02-28-git-7a4840a8ca-full_build/bin/ffprobe.exe"
+	// ffmpegbinary  = "X:/other/tools/ffmpeg-gyan/ffmpeg-2022-02-28-git-7a4840a8ca-full_build/bin/ffmpeg.exe"
+	// ffprobebinary = "X:/other/tools/ffmpeg-gyan/ffmpeg-2022-02-28-git-7a4840a8ca-full_build/bin/ffprobe.exe"
+	ffmpegbinary  = "f:/ffmpeg/ffmpeg.exe"
+	ffprobebinary = "f:/ffmpeg/ffprobe.exe"
 )
 
 var (
 	// cdregex extracts the correct crop filter from an ffmpeg cropdetect run
 	cdregex = regexp.MustCompile(`t:([\d]*).*?(crop=[-\d:]*)`)
 	// tcpregex extracts the current transcode progress from a running transcode
-	tcpregex = regexp.MustCompile(`frame=[\s]*([\d]*)`)
+	tcpregex = regexp.MustCompile(`frame=[\s]*([\d]*).*speed=([\d\.x])*`)
 	ffquiet  = []string{"-hide_banner", "-stats", "-loglevel", "error"}
 	ffcommon = []string{"-probesize", "6000M", "-analyzeduration", "6000M"}
 )
 
-func (w dbUpdateWriter) Write(p []byte) (int, error) {
-	//	logger.Infof("%s", p)
-	tx, err := db.Begin()
-	if err != nil {
-		return w.CombinedOutput.Write(p)
+func parseFfmpegStats(p io.ReadCloser, j int) {
+	scanner := bufio.NewScanner(p)
+	for scanner.Scan() {
+		m := tcpregex.FindAllStringSubmatch(scanner.Text(), -1)
+		if m != nil {
+			tx, err := db.Begin()
+			if err != nil {
+				continue
+			}
+			defer tx.Rollback()
+			_, err = tx.Exec(`
+			UPDATE active_job SET current_frame = ?, speed = ? WHERE id = ?
+			`, m[len(m)-1][1], m[len(m)-1][2], j)
+			if err != nil {
+				logger.Errorf("failed to update job status: %#v", err)
+				tx.Rollback()
+			}
+			tx.Commit()
+		}
 	}
-	defer tx.Rollback()
-
-	stmt, err := tx.Prepare(`UPDATE active_job SET current_frame = ? WHERE id = ?`)
-	if err != nil {
-		return w.CombinedOutput.Write(p)
-	}
-
-	f := tcpregex.FindAllSubmatch(p, -1)
-	if len(f) < 1 {
-
-		return w.CombinedOutput.Write(p)
-	}
-	if len(f[len(f)-1]) < 2 {
-		return w.CombinedOutput.Write(p)
-	}
-	i, err := strconv.Atoi(string(f[len(f)-1][1]))
-	if err != nil {
-		logger.Errorf("%q", err)
-		i = 0
-	}
-	_, err = stmt.Exec(i, w.JobId)
-	if err != nil {
-		return w.CombinedOutput.Write(p)
-	}
-	tx.Commit()
-	return w.CombinedOutput.Write(p)
 }
 
 func detectCrop(s string, hwaccel bool) (string, error) {
@@ -115,8 +99,8 @@ func detectCrop(s string, hwaccel bool) (string, error) {
 
 func probeMetadata(s string) (MediaMetadata, error) {
 	args := []string{
-		"-threads", "16", "-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries",
-		"stream=nb_read_frames,codec_name", "-print_format", "json", s,
+		"-threads", "32", "-v", "error", "-select_streams", "v:0", "-show_entries",
+		"stream=codec_name", "-print_format", "json", s,
 	}
 	logger.Infof("calling ffprobe with: %#v", args)
 	cmd := exec.Command(ffprobebinary, args...)
@@ -130,18 +114,19 @@ func probeMetadata(s string) (MediaMetadata, error) {
 
 	var ffp FfprobeOutput
 	json.Unmarshal(o, &ffp)
-
-	nf, err := strconv.Atoi(ffp.Streams[0].Frames)
-	if err != nil {
-		logger.Errorf("%q", err)
-	}
+	/*
+		nf, err := strconv.Atoi(ffp.Streams[0].Frames)
+		if err != nil {
+			logger.Errorf("%q", err)
+		}
+	*/
 	return MediaMetadata{
-		TotalFrames: nf,
+		TotalFrames: 0,
 		Codec:       ffp.Streams[0].Codec,
 	}, nil
 }
 
-func ffmpegTranscode(tj TranscodeJob) error {
+func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	args := append(ffquiet, ffcommon...)
 
 	if strings.ToLower(tj.SourceMeta.Codec) == "vc1" {
@@ -149,11 +134,11 @@ func ffmpegTranscode(tj TranscodeJob) error {
 	}
 
 	args = append(args, "-i", tj.JobDefinition.Source)
-	mapargs := []string{"-map", "0:m:language:eng?", "-map", "0:v:0"}
+	mapargs := []string{"-map", "0:m:language:eng?"}
 
 	for m, i := range tj.JobDefinition.Srt_files {
 		args = append(args, "-i", i)
-		mapargs = append(mapargs, "-map", fmt.Sprintf("%d", m), "-metadata:s:s", "lanugage=eng")
+		mapargs = append(mapargs, "-map", fmt.Sprintf("%d", m+1), "-metadata:s:s", "lanugage=eng")
 	}
 	if strings.ToLower(tj.JobDefinition.Codec) != "copy" {
 		args = append(args, "-vf", tj.JobDefinition.Video_filters)
@@ -164,18 +149,22 @@ func ffmpegTranscode(tj TranscodeJob) error {
 	args = append(args, tj.JobDefinition.Destination)
 
 	cmd := exec.Command(ffmpegbinary, args...)
-	wr := dbUpdateWriter{
-		JobId: tj.Id,
-	}
-	cmd.Stdout = wr
-	cmd.Stderr = wr
+
+	/*
+		ep, err := cmd.StderrPipe()
+		if err != nil {
+			logger.Errorf("failed to setup stderr pipe: %q", err)
+		}
+		go parseFfmpegStats(ep, tj.Id)
+	*/
 
 	logger.Infof("calling ffmpeg with args: %#v", args)
 	err := cmd.Run()
 	if err != nil {
-		return fmt.Errorf("ffmpeg exec error: %q, %q", err, wr.CombinedOutput.String())
+		co, _ := cmd.CombinedOutput()
+		return nil, fmt.Errorf("ffmpeg exec error: %q, %q", err, string(co))
 	}
-	return nil
+	return args, nil
 }
 
 func buildCodec(codec string, crf int) []string {
@@ -189,10 +178,10 @@ func buildCodec(codec string, crf int) []string {
 			"-cq", fmt.Sprintf("%d", crf),
 			"-profile:v", "1",
 			"-tier", "1",
-			//			"-spatial_aq", "1",
-			//			"-temporal_aq", "1",
+			"-spatial_aq", "1",
+			"-temporal_aq", "1",
 			"-preset", "1",
-			//			"-b_ref_mode", "2",
+			"-b_ref_mode", "2",
 		}
 	}
 }

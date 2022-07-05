@@ -148,13 +148,52 @@ func addCrop(tj *TranscodeJob) error {
 	return tx.Commit()
 }
 
-func transcodeMedia(tj *TranscodeJob) error {
+func transcodeMedia(tj *TranscodeJob) ([]string, error) {
 	// make sure the dest directory exists or create it
 
 	logger.Infof("making path: %s", filepath.Dir(tj.JobDefinition.Destination))
 	err := os.MkdirAll(filepath.Dir(tj.JobDefinition.Destination), 0664)
 	if err != nil {
-		return fmt.Errorf("failed to create destination directory: %q", err)
+		return nil, fmt.Errorf("failed to create destination directory: %q", err)
 	}
 	return ffmpegTranscode(*tj)
+}
+
+func finishJob(tj *TranscodeJob, args []string) error {
+	cq := `
+	INSERT INTO completed_jobs (id, source, destination, autocrop, ffmpegargs, status)
+	VALUES(?, ?, ?, ?, ?, ?)
+	`
+	rm := `
+	DELETE FROM transcode_queue WHERE id = ?;
+	DELETE FROM active_job WHERE id = ?;
+	`
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %q", err)
+	}
+	defer tx.Rollback()
+
+	complete, err := tx.Prepare(cq)
+	if err != nil {
+		return fmt.Errorf("failed to prepare sql: %v", err)
+	}
+	clean, err := tx.Prepare(rm)
+	if err != nil {
+		return fmt.Errorf("failed to prepare sql: %v", err)
+	}
+
+	a, err := json.Marshal(args)
+	if err != nil {
+		return err
+	}
+	_, err = complete.Exec(tj.Id, tj.JobDefinition.Source, tj.JobDefinition.Destination, tj.JobDefinition.Autocrop, a, tj.State)
+	if err != nil {
+		return fmt.Errorf("failed to add completion record: %v", err)
+	}
+	_, err = clean.Exec(tj.Id, tj.Id)
+	if err != nil {
+		return fmt.Errorf("failed to remove job records: %v", err)
+	}
+	return tx.Commit()
 }
