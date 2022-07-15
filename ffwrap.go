@@ -138,7 +138,7 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 
 	for m, i := range tj.JobDefinition.Srt_files {
 		args = append(args, "-i", i)
-		mapargs = append(mapargs, "-map", fmt.Sprintf("%d", m+1), "-metadata:s:s", "lanugage=eng")
+		mapargs = append(mapargs, "-map", fmt.Sprintf("%d", m+1), "-metadata:s:s", "language=eng")
 	}
 	if strings.ToLower(tj.JobDefinition.Codec) != "copy" {
 		args = append(args, "-vf", tj.JobDefinition.Video_filters)
