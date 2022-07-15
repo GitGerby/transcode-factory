@@ -97,7 +97,7 @@ table {
 			<th>
 				Subtitles:
 			</th>
-			<td>
+			<td colspan="0">
 				<ol>
 					{{range .ActiveJob.JobDefinition.Srt_files}}
 						<li>{{.}}</li>
@@ -163,13 +163,13 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 	for q.Next() {
 		var r TranscodeJob
 		err := q.Scan(&r.Id, &r.JobDefinition.Source, &r.JobDefinition.Destination, &r.JobDefinition.Crf, &r.JobDefinition.Autocrop, &srtj)
-		if err != nil {
+		if err != nil && err != sql.ErrNoRows {
 			fmt.Fprintf(w, "fatal error scanning db response for queue: %#v", err)
 			return
 		}
 
 		if err := json.Unmarshal(srtj, &r.JobDefinition.Srt_files); err != nil {
-			http.Error(w, "failed to unmarshall queue srt file", http.StatusInternalServerError)
+			logger.Error("failed to unmarshall queue srt file")
 		}
 
 		page.TranscodeQueue = append(page.TranscodeQueue, r)
@@ -181,12 +181,12 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 	FROM transcode_queue JOIN active_job ON transcode_queue.id = active_job.id`)
 
 	err = a.Scan(&page.ActiveJob.Id, &page.ActiveJob.JobDefinition.Source, &page.ActiveJob.JobDefinition.Destination, &page.ActiveJob.State, &page.ActiveJob.CurrentFrame, &page.ActiveJob.SourceMeta.TotalFrames, &page.ActiveJob.JobDefinition.Video_filters, &srtj, &page.ActiveJob.JobDefinition.Crf)
-	if err != nil {
+	if err != nil && err != sql.ErrNoRows {
 		fmt.Fprintf(w, "fatal error scanning db response for active job: %#v", err)
 		return
 	}
 	if err := json.Unmarshal(srtj, &page.ActiveJob.JobDefinition.Srt_files); err != nil {
-		http.Error(w, "failed to unmarshall active job srt file", http.StatusInternalServerError)
+		logger.Error("failed to unmarshall active job srt file")
 	}
 
 	page.QueueLength = len(page.TranscodeQueue)

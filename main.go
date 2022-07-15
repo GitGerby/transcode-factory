@@ -192,6 +192,7 @@ func mainLoop() {
 				if err := finishJob(&tj, nil); err != nil {
 					logger.Fatal("failed to cleanup job: %q", err)
 				}
+				tx.Rollback()
 				continue
 			}
 			if err = tx.Commit(); err != nil {

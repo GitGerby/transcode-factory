@@ -47,7 +47,7 @@ var (
 	cdregex = regexp.MustCompile(`t:([\d]*).*?(crop=[-\d:]*)`)
 	// tcpregex extracts the current transcode progress from a running transcode
 	tcpregex = regexp.MustCompile(`frame=[\s]*([\d]*).*speed=([\d\.x])*`)
-	ffquiet  = []string{"-hide_banner", "-stats", "-loglevel", "error"}
+	ffquiet  = []string{"-y", "-hide_banner", "-stats", "-loglevel", "error"}
 	ffcommon = []string{"-probesize", "6000M", "-analyzeduration", "6000M"}
 )
 
