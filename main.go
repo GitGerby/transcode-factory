@@ -86,7 +86,6 @@ const (
 )
 
 var (
-	// databasefile = "//citadel.somuchcrypto.com/media/other/transcode-factory.db"
 	databasefile = "f:/transcode-factory.db"
 	db           *sql.DB
 )
