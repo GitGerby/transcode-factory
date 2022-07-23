@@ -80,6 +80,7 @@ const (
 	ExaminingSource
 	BuildVideoFilter
 	BuildAudioFilter
+	AwaitingTranscode
 	Transcoding
 	Complete
 	Failed
@@ -101,7 +102,8 @@ func initdb() error {
 		codec TEXT,
     video_filters TEXT,
     audio_filters TEXT,
-    autocrop INTEGER
+    autocrop INTEGER,
+		crop_complete INTEGER
   );
 
   DROP TABLE IF EXISTS active_job;
@@ -135,7 +137,7 @@ func initdb() error {
 
 func mainLoop() {
 	for {
-		tj, err := pullNextJob()
+		tj, err := pullNextTranscode()
 		if err == sql.ErrNoRows {
 			time.Sleep(10 * time.Second)
 			continue
@@ -153,56 +155,14 @@ func mainLoop() {
 			continue
 		}
 
-		logger.Infof("job id %d: determining length in frames", tj.Id)
+		logger.Infof("job id %d: determining source metadata", tj.Id)
 		if err := updateSourceMetadata(&tj); err != nil {
-			logger.Errorf("failed to determine number of frames in file: %v", err)
+			logger.Errorf("ffprobe failed: %v", err)
 			tj.State = Failed
 			if err := finishJob(&tj, nil); err != nil {
 				logger.Fatal("failed to cleanup job: %q", err)
 			}
 			continue
-		}
-
-		logger.Infof("job id %d: building video filter graph", tj.Id)
-		updateJobStatus(tj.Id, BuildVideoFilter)
-		if tj.JobDefinition.Autocrop {
-			if err := addCrop(&tj); err != nil {
-				logger.Errorf("updatefilters failed on job %d: %q", tj.Id, err)
-				tj.State = Failed
-				if err := finishJob(&tj, nil); err != nil {
-					logger.Fatal("failed to cleanup job: %q", err)
-				}
-				continue
-			}
-		} else {
-			tx, err := db.Begin()
-			if err != nil {
-				logger.Errorf("failed to begin transaction: %q", err)
-				tj.State = Failed
-				if err := finishJob(&tj, nil); err != nil {
-					logger.Fatal("failed to cleanup job: %q", err)
-				}
-				continue
-			}
-			_, err = tx.Exec("UPDATE active_job SET vfilter = (SELECT video_filters FROM transcode_queue WHERE id =?)", tj.Id)
-			if err != nil {
-				logger.Errorf("failed to copy video filters to active job: %q, rollback: %q", err, tx.Rollback())
-				tj.State = Failed
-				if err := finishJob(&tj, nil); err != nil {
-					logger.Fatal("failed to cleanup job: %q", err)
-				}
-				tx.Rollback()
-				continue
-			}
-			if err = tx.Commit(); err != nil {
-				logger.Errorf("failed to commit transaction: %q", err)
-				tx.Rollback()
-				tj.State = Failed
-				if err := finishJob(&tj, nil); err != nil {
-					logger.Fatal("failed to cleanup job: %q", err)
-				}
-				continue
-			}
 		}
 
 		logger.Infof("job id %d: beginning transcode", tj.Id)
@@ -225,10 +185,37 @@ func mainLoop() {
 	}
 }
 
-func launchapi() {
+func launchApi() {
 	http.HandleFunc("/statusz", display_rows)
 	http.HandleFunc("/add", newtranscode)
 	go http.ListenAndServe(":51218", nil)
+}
+
+func cropManager() {
+	ct := make(chan struct{}, 4)
+	logger.Infof("crop detect thread listening")
+	for {
+		tj, err := pullNextCrop()
+		if err == sql.ErrNoRows {
+			time.Sleep(10 * time.Second)
+			continue
+		} else if err != nil {
+			logger.Fatalf("failed to pull next autocrop item: %q", err)
+		}
+
+		logger.Infof("job id %d: building video filter graph", tj.Id)
+		updateJobStatus(tj.Id, BuildVideoFilter)
+
+		ct <- struct{}{}
+		go func(tj *TranscodeJob) {
+			err := compileVF(tj)
+			if err != nil {
+				logger.Errorf("job id %d: failed to compile vf: %q", tj.Id, err)
+			}
+			updateJobStatus(tj.Id, AwaitingTranscode)
+			<-ct
+		}(&tj)
+	}
 }
 
 func main() {
@@ -243,7 +230,8 @@ func main() {
 		logger.Fatalf("failed to prepare database: %v", err)
 	}
 
-	launchapi()
+	launchApi()
+	go cropManager()
 	mainLoop()
 	/*
 		svConfig := &service.Config{

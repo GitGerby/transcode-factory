@@ -25,12 +25,40 @@ import (
 	"github.com/google/logger"
 )
 
-func pullNextJob() (TranscodeJob, error) {
+func pullNextCrop() (TranscodeJob, error) {
 	niq := `
   SELECT id, source, destination, IFNULL(crf,18) as crf, srt_files, IFNULL(autocrop,1) as autocrop, video_filters, audio_filters, codec 
   FROM transcode_queue
   WHERE id NOT IN (SELECT id FROM completed_jobs)
     AND id NOT IN (SELECT id FROM active_job)
+		AND autocrop = 1 
+		AND crop_complete != 1
+  ORDER BY id ASC
+  LIMIT 1;`
+
+	r := db.QueryRow(niq)
+	var tj TranscodeJob
+	var subs []byte
+	err := r.Scan(&tj.Id, &tj.JobDefinition.Source, &tj.JobDefinition.Destination, &tj.JobDefinition.Crf, &subs, &tj.JobDefinition.Autocrop, &tj.JobDefinition.Video_filters, &tj.JobDefinition.Audio_filters, &tj.JobDefinition.Codec)
+	if err == sql.ErrNoRows {
+		return TranscodeJob{}, err
+	} else if err != nil {
+		return TranscodeJob{}, fmt.Errorf("db query error: %q", err)
+	}
+
+	err = json.Unmarshal(subs, &tj.JobDefinition.Srt_files)
+	if err != nil {
+		logger.Errorf("failed to unmarshal srt files: %q", err)
+	}
+	return tj, nil
+}
+
+func pullNextTranscode() (TranscodeJob, error) {
+	niq := `
+  SELECT id, source, destination, IFNULL(crf,18) as crf, srt_files, IFNULL(autocrop,1) as autocrop, video_filters, audio_filters, codec 
+  FROM transcode_queue
+  WHERE id NOT IN (SELECT id FROM completed_jobs)
+		AND ((autocrop = 1 AND crop_complete = 1) OR (autocrop = 0))
   ORDER BY id ASC
   LIMIT 1;`
 
@@ -116,7 +144,7 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 	return tx.Commit()
 }
 
-func addCrop(tj *TranscodeJob) error {
+func compileVF(tj *TranscodeJob) error {
 	var h bool
 	if strings.ToLower(tj.SourceMeta.Codec) == "vc1" {
 		h = true
@@ -124,9 +152,13 @@ func addCrop(tj *TranscodeJob) error {
 		h = false
 	}
 
-	c, err := detectCrop(tj.JobDefinition.Source, h)
-	if err != nil {
-		return err
+	var c string
+	if tj.JobDefinition.Autocrop {
+		var err error
+		c, err = detectCrop(tj.JobDefinition.Source, h)
+		if err != nil {
+			return err
+		}
 	}
 
 	tx, err := db.Begin()
@@ -135,15 +167,19 @@ func addCrop(tj *TranscodeJob) error {
 	}
 	defer tx.Rollback()
 
-	if tj.JobDefinition.Video_filters != "" {
+	if tj.JobDefinition.Video_filters != "" && c != "" {
 		tj.JobDefinition.Video_filters = strings.Join([]string{c, tj.JobDefinition.Video_filters}, ";")
-	} else {
+	} else if c != "" {
 		tj.JobDefinition.Video_filters = c
 	}
 
-	_, err = tx.Exec("UPDATE active_job SET vfilter = ? WHERE id = ?", tj.JobDefinition.Video_filters, tj.Id)
+	_, err = tx.Exec("UPDATE transcode_queue SET video_filters = ? WHERE id = ?", tj.JobDefinition.Video_filters, tj.Id)
 	if err != nil {
-		return fmt.Errorf("failed to update vfilter: %q", err)
+		return fmt.Errorf("failed to update video_filters: %q", err)
+	}
+	_, err = tx.Exec("UPDATE transcode_queue SET crop_complete = 1 WHERE id = ?", tj.Id)
+	if err != nil {
+		return fmt.Errorf("failed to update crop_complete: %q", err)
 	}
 	return tx.Commit()
 }

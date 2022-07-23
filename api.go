@@ -25,10 +25,9 @@ import (
 )
 
 type PageData struct {
-	ActiveJob      TranscodeJob
+	ActiveJobs     []TranscodeJob
 	TranscodeQueue []TranscodeJob
 	CompletedJobs  []TranscodeJob
-	QueueLength    int
 }
 
 const html_template = `
@@ -49,20 +48,22 @@ table {
 </head>
 <body>
 	<h1>transcode-factory status</h1><br>
-	<h2>Active Job</h2>
+	<h2>Active Jobs</h2>
+	Currently running jobs: {{len .ActiveJobs}}
+	{{range .ActiveJobs}}
 	<table>
 		<tr>
 			<th>
 				Job ID:
 			</th>
 			<td>
-				{{.ActiveJob.Id}}
+				{{.Id}}
 			</td>
 			<th>
 				Stage:
 			</th>
 			<td>
-				{{.ActiveJob.State}}
+				{{.State}}
 			</td>
 		</tr>
 		<tr>
@@ -70,13 +71,13 @@ table {
 				Source:
 			</th>
 			<td> 
-				{{.ActiveJob.JobDefinition.Source}} 
+				{{.JobDefinition.Source}} 
 			</td>
 			<th>
-				CRF:
+				CODEC/CRF:
 			</th>
 			<td>
-				{{.ActiveJob.JobDefinition.Crf}}
+			{{.JobDefinition.Codec}} / {{.JobDefinition.Crf}} 
 			</td>
 		</tr>
 		<tr>
@@ -84,30 +85,31 @@ table {
 				Destination:
 			</th>
 			<td>
-				{{.ActiveJob.JobDefinition.Destination}}<br>
+				{{.JobDefinition.Destination}}<br>
 			</td>
 			<th>
 				Video Filter:
 			</th>
 			<td>
-				{{.ActiveJob.JobDefinition.Video_filters}}
+				{{.JobDefinition.Video_filters}}
 			</td>
 		</tr>
 		<tr>
 			<th>
 				Subtitles:
 			</th>
-			<td colspan="0">
+			<td colspan = "0">
 				<ol>
-					{{range .ActiveJob.JobDefinition.Srt_files}}
+					{{range .JobDefinition.Srt_files}}
 						<li>{{.}}</li>
 					{{end}}
 				</ol>
 			</td>
 		</tr>
 	</table>
+	{{end}}
 	<h2>Current Queue</h2><br>
-	QueueLength: {{.QueueLength}}
+	Queue Length: {{len .TranscodeQueue}}
   <table>
     <tr>
       <th>Job ID</th>
@@ -176,20 +178,27 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 	}
 	q.Close()
 
-	a := tx.QueryRow(`
+	// query for active jobs
+	a, err := tx.Query(`
 	SELECT transcode_queue.id, source, destination, job_state, IFNULL(current_frame,0), IFNULL(total_frames,0), IFNULL(vfilter,'empty'), srt_files, crf
 	FROM transcode_queue JOIN active_job ON transcode_queue.id = active_job.id`)
 
-	err = a.Scan(&page.ActiveJob.Id, &page.ActiveJob.JobDefinition.Source, &page.ActiveJob.JobDefinition.Destination, &page.ActiveJob.State, &page.ActiveJob.CurrentFrame, &page.ActiveJob.SourceMeta.TotalFrames, &page.ActiveJob.JobDefinition.Video_filters, &srtj, &page.ActiveJob.JobDefinition.Crf)
+	for a.Next() {
+		var r TranscodeJob
+		err = a.Scan(&r.Id, &r.JobDefinition.Source, &r.JobDefinition.Destination, &r.State, &r.CurrentFrame, &r.SourceMeta.TotalFrames, &r.JobDefinition.Video_filters, &srtj, &r.JobDefinition.Crf)
+
+		if err := json.Unmarshal(srtj, &r.JobDefinition.Srt_files); err != nil {
+			logger.Error("failed to unmarshall queue srt file")
+		}
+
+		page.ActiveJobs = append(page.ActiveJobs, r)
+	}
 	if err != nil && err != sql.ErrNoRows {
 		fmt.Fprintf(w, "fatal error scanning db response for active job: %#v", err)
 		return
 	}
-	if err := json.Unmarshal(srtj, &page.ActiveJob.JobDefinition.Srt_files); err != nil {
-		logger.Error("failed to unmarshall active job srt file")
-	}
 
-	page.QueueLength = len(page.TranscodeQueue)
+	// page.QueueLength = len(page.TranscodeQueue)
 	t, err := template.New("results").Parse(html_template)
 	if err != nil {
 		fmt.Fprintf(w, "fatal error parsing template: %v+", err)
