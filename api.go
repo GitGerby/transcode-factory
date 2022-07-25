@@ -34,7 +34,7 @@ const html_template = `
 <!DOCTYPE html>
 <html>
 <head>
-<meta http-equiv="refresh" content="30">
+<meta http-equiv="refresh" content="10">
 <style>
 table, td, th {
   border: 1px solid;
@@ -180,9 +180,13 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 
 	// query for active jobs
 	a, err := tx.Query(`
-	SELECT transcode_queue.id, source, destination, job_state, IFNULL(current_frame,0), IFNULL(total_frames,0), IFNULL(vfilter,'empty'), srt_files, crf
+	SELECT transcode_queue.id, source, destination, job_state, IFNULL(current_frame,0), IFNULL(total_frames,0), IFNULL(video_filters, "empty"), srt_files, crf
 	FROM transcode_queue JOIN active_job ON transcode_queue.id = active_job.id`)
-
+	if err != nil {
+		logger.Errorf("error fetching active jobs: %q", err)
+		return
+	}
+	defer a.Close()
 	for a.Next() {
 		var r TranscodeJob
 		err = a.Scan(&r.Id, &r.JobDefinition.Source, &r.JobDefinition.Destination, &r.State, &r.CurrentFrame, &r.SourceMeta.TotalFrames, &r.JobDefinition.Video_filters, &srtj, &r.JobDefinition.Crf)

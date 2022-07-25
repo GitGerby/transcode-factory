@@ -27,12 +27,35 @@ import (
 
 func pullNextCrop() (TranscodeJob, error) {
 	niq := `
+  SELECT id, source, video_filters
+  FROM transcode_queue 
+	WHERE id NOT IN (SELECT id FROM completed_jobs)
+		AND id NOT IN (SELECT id FROM active_job)
+		AND autocrop = 1 
+		AND crop_complete != 1
+		AND codec != 'copy'
+	ORDER BY id ASC
+	LIMIT 1;`
+
+	tj := TranscodeJob{
+		JobDefinition: TranscodeRequest{Autocrop: true},
+	}
+	r := db.QueryRow(niq)
+	err := r.Scan(&tj.Id, &tj.JobDefinition.Source, &tj.JobDefinition.Video_filters)
+	if err == sql.ErrNoRows {
+		return TranscodeJob{}, err
+	} else if err != nil {
+		return TranscodeJob{}, fmt.Errorf("db query error: %q", err)
+	}
+	return tj, nil
+}
+
+func pullNextTranscode() (TranscodeJob, error) {
+	niq := `
   SELECT id, source, destination, IFNULL(crf,18) as crf, srt_files, IFNULL(autocrop,1) as autocrop, video_filters, audio_filters, codec 
   FROM transcode_queue
   WHERE id NOT IN (SELECT id FROM completed_jobs)
-    AND id NOT IN (SELECT id FROM active_job)
-		AND autocrop = 1 
-		AND crop_complete != 1
+	AND ((autocrop = 1 AND crop_complete = 1) OR (autocrop = 0))
   ORDER BY id ASC
   LIMIT 1;`
 
@@ -53,30 +76,14 @@ func pullNextCrop() (TranscodeJob, error) {
 	return tj, nil
 }
 
-func pullNextTranscode() (TranscodeJob, error) {
-	niq := `
-  SELECT id, source, destination, IFNULL(crf,18) as crf, srt_files, IFNULL(autocrop,1) as autocrop, video_filters, audio_filters, codec 
-  FROM transcode_queue
-  WHERE id NOT IN (SELECT id FROM completed_jobs)
-		AND ((autocrop = 1 AND crop_complete = 1) OR (autocrop = 0))
-  ORDER BY id ASC
-  LIMIT 1;`
-
-	r := db.QueryRow(niq)
-	var tj TranscodeJob
-	var subs []byte
-	err := r.Scan(&tj.Id, &tj.JobDefinition.Source, &tj.JobDefinition.Destination, &tj.JobDefinition.Crf, &subs, &tj.JobDefinition.Autocrop, &tj.JobDefinition.Video_filters, &tj.JobDefinition.Audio_filters, &tj.JobDefinition.Codec)
-	if err == sql.ErrNoRows {
-		return TranscodeJob{}, err
-	} else if err != nil {
-		return TranscodeJob{}, fmt.Errorf("db query error: %q", err)
-	}
-
-	err = json.Unmarshal(subs, &tj.JobDefinition.Srt_files)
+func deactivateJob(id int) error {
+	tx, err := db.Begin()
 	if err != nil {
-		logger.Errorf("failed to unmarshal srt files: %q", err)
+		return fmt.Errorf("failed to begin transaction: %q", err)
 	}
-	return tj, nil
+	defer tx.Rollback()
+	tx.Exec("DELETE FROM active_job WHERE id = ?", id)
+	return tx.Commit()
 }
 
 func updateJobStatus(id int, js JobState) error {
@@ -116,7 +123,35 @@ func updateJobStatus(id int, js JobState) error {
 	return tx.Commit()
 }
 
+func querySourceTable(id int) (MediaMetadata, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return MediaMetadata{}, fmt.Errorf("failed to begin transaction: %q", err)
+	}
+	defer tx.Rollback()
+	r := tx.QueryRow("SELECT codec, width, height FROM source_metadata WHERE id = ?", id)
+	var m MediaMetadata
+	err = r.Scan(m.Codec, m.Width, m.Height)
+	if err == sql.ErrNoRows {
+		return MediaMetadata{}, err
+	} else if err != nil {
+		return MediaMetadata{}, fmt.Errorf("failed to parse db response:%q", err)
+	}
+	return m, tx.Commit()
+}
+
+// updateSourceMetadata queries the database for existing ffprobe results; if
+// none are found it runs ffprobe and populates the database and the provided
+// struct.
 func updateSourceMetadata(tj *TranscodeJob) error {
+	m, err := querySourceTable(tj.Id)
+	if err == nil {
+		tj.SourceMeta = m
+		return nil
+	} else if err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("querying source table failed: %q", err)
+	}
+
 	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %q", err)
@@ -137,7 +172,11 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 
 	_, err = tx.Exec("UPDATE active_job SET total_frames = ?, source_codec = ? WHERE id = ?", fc.TotalFrames, fc.Codec, tj.Id)
 	if err != nil {
-		return fmt.Errorf("failed to update total_frames: %q", err)
+		return fmt.Errorf("failed to update source metadata: %q", err)
+	}
+	_, err = tx.Exec("UPDATE source_metadata SET codec = ?, width = ?, height = ? WHERE id = ?", fc.Codec, fc.Width, fc.Height, tj.Id)
+	if err != nil {
+		return fmt.Errorf("failed to update source metadata: %q", err)
 	}
 	tj.SourceMeta.Codec = fc.Codec
 	tj.SourceMeta.TotalFrames = fc.TotalFrames
@@ -161,19 +200,22 @@ func compileVF(tj *TranscodeJob) error {
 		}
 	}
 
-	tx, err := db.Begin()
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %q", err)
-	}
-	defer tx.Rollback()
-
 	if tj.JobDefinition.Video_filters != "" && c != "" {
 		tj.JobDefinition.Video_filters = strings.Join([]string{c, tj.JobDefinition.Video_filters}, ";")
 	} else if c != "" {
 		tj.JobDefinition.Video_filters = c
 	}
 
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %q", err)
+	}
+	defer tx.Rollback()
 	_, err = tx.Exec("UPDATE transcode_queue SET video_filters = ? WHERE id = ?", tj.JobDefinition.Video_filters, tj.Id)
+	if err != nil {
+		return fmt.Errorf("failed to persist video_filters: %q", err)
+	}
+	_, err = tx.Exec("UPDATE active_job SET vfilter = ? WHERE id = ?", tj.JobDefinition.Video_filters, tj.Id)
 	if err != nil {
 		return fmt.Errorf("failed to update video_filters: %q", err)
 	}

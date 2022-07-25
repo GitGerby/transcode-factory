@@ -71,6 +71,8 @@ type TranscodeJob struct {
 type MediaMetadata struct {
 	TotalFrames int
 	Codec       string
+	Width       int
+	Height      int
 }
 
 type JobState int
@@ -84,10 +86,11 @@ const (
 	Transcoding
 	Complete
 	Failed
+	Cancelled
 )
 
 var (
-	databasefile = "f:/transcode-factory.db"
+	databasefile = "f:/transcode-factory.db?_pragma=busy_timeout(5000)"
 	db           *sql.DB
 )
 
@@ -129,6 +132,15 @@ func initdb() error {
     ffmpegargs TEXT,
 		status INTEGER
     );
+
+	CREATE TABLE IF NOT EXISTS source_metadata (
+		id INTEGER PRIMARY KEY,
+		codec TEXT,
+		width INTEGER,
+		height INTEGER,
+		FOREIGN KEY (id)
+			REFERENCES transcode_queue (id)
+	);
     `); err != nil {
 		return err
 	}
@@ -150,7 +162,7 @@ func mainLoop() {
 			logger.Errorf("failed to mark job active: %v", err)
 			tj.State = Failed
 			if err := finishJob(&tj, nil); err != nil {
-				logger.Fatal("failed to cleanup job: %q", err)
+				logger.Fatalf("failed to cleanup job: %q", err)
 			}
 			continue
 		}
@@ -208,11 +220,20 @@ func cropManager() {
 
 		ct <- struct{}{}
 		go func(tj *TranscodeJob) {
-			err := compileVF(tj)
+			err := updateSourceMetadata(tj)
+			if err != nil {
+				logger.Errorf("job id %d: failed to determine source metadata: %q", tj.Id, err)
+			}
+
+			err = compileVF(tj)
 			if err != nil {
 				logger.Errorf("job id %d: failed to compile vf: %q", tj.Id, err)
 			}
 			updateJobStatus(tj.Id, AwaitingTranscode)
+			err = deactivateJob(tj.Id)
+			if err != nil {
+				logger.Errorf("job id %d: failed to deactivate job: %q", tj.Id, err)
+			}
 			<-ct
 		}(&tj)
 	}
@@ -232,6 +253,7 @@ func main() {
 
 	launchApi()
 	go cropManager()
+	//go probeManager()
 	mainLoop()
 	/*
 		svConfig := &service.Config{

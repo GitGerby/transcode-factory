@@ -33,11 +33,11 @@ type FfprobeOutput struct {
 type FfprobeStreams struct {
 	Codec  string `json:"codec_name"`
 	Frames string `json:"nb_read_frames"`
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
 }
 
 const (
-	// ffmpegbinary  = "X:/other/tools/ffmpeg-gyan/ffmpeg-2022-02-28-git-7a4840a8ca-full_build/bin/ffmpeg.exe"
-	// ffprobebinary = "X:/other/tools/ffmpeg-gyan/ffmpeg-2022-02-28-git-7a4840a8ca-full_build/bin/ffprobe.exe"
 	ffmpegbinary  = "f:/ffmpeg/ffmpeg.exe"
 	ffprobebinary = "f:/ffmpeg/ffprobe.exe"
 )
@@ -81,6 +81,7 @@ func detectCrop(s string, hwaccel bool) (string, error) {
 	args = append(args, "-i", s, "-vf", "cropdetect=round=2", "-t", "300", "-f", "null", "NUL")
 
 	var sout, serr bytes.Buffer
+	logger.Infof("cropdetect with args %#v", args)
 	cmd := exec.Command(ffmpegbinary, args...)
 	cmd.Stdout = &sout
 	cmd.Stderr = &serr
@@ -100,7 +101,7 @@ func detectCrop(s string, hwaccel bool) (string, error) {
 func probeMetadata(s string) (MediaMetadata, error) {
 	args := []string{
 		"-threads", "32", "-v", "error", "-select_streams", "v:0", "-show_entries",
-		"stream=codec_name", "-print_format", "json", s,
+		"stream=codec_name,width,height,", "-print_format", "json", s,
 	}
 	logger.Infof("calling ffprobe with: %#v", args)
 	cmd := exec.Command(ffprobebinary, args...)
@@ -142,7 +143,7 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 			mapargs = append(mapargs, "-map", fmt.Sprintf("%d", m+1), "-metadata:s:s", "language=eng")
 		}
 	}
-	if strings.ToLower(tj.JobDefinition.Codec) != "copy" {
+	if strings.ToLower(tj.JobDefinition.Codec) != "copy" && tj.JobDefinition.Video_filters != "" {
 		args = append(args, "-vf", tj.JobDefinition.Video_filters)
 	}
 	args = append(args, buildCodec(tj.JobDefinition.Codec, tj.JobDefinition.Crf)...)
