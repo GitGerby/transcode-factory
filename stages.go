@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/google/logger"
@@ -131,7 +132,7 @@ func querySourceTable(id int) (MediaMetadata, error) {
 	defer tx.Rollback()
 	r := tx.QueryRow("SELECT codec, width, height FROM source_metadata WHERE id = ?", id)
 	var m MediaMetadata
-	err = r.Scan(m.Codec, m.Width, m.Height)
+	err = r.Scan(&m.Codec, &m.Width, &m.Height)
 	if err == sql.ErrNoRows {
 		return MediaMetadata{}, err
 	} else if err != nil {
@@ -158,6 +159,14 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 	}
 	defer tx.Rollback()
 
+	_, err = tx.Exec(`
+	INSERT OR IGNORE INTO source_metadata (id)
+	VALUES (?)
+	`, tj.Id)
+	if err != nil {
+		return fmt.Errorf("job id %d: failed to insert source_metadata: %q", tj.Id, err)
+	}
+
 	sq := "SELECT source FROM transcode_queue WHERE id = ?;"
 	rs := db.QueryRow(sq, tj.Id)
 	var s string
@@ -178,11 +187,16 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 	if err != nil {
 		return fmt.Errorf("failed to update source metadata: %q", err)
 	}
+	tj.SourceMeta.Width = fc.Width
+	tj.SourceMeta.Height = fc.Height
 	tj.SourceMeta.Codec = fc.Codec
 	tj.SourceMeta.TotalFrames = fc.TotalFrames
+	logger.Infof("job id %d:source metadata: %#v", tj.Id, tj.SourceMeta)
 	return tx.Commit()
 }
 
+// compileVF builds the appropriate video filter string based on the provided filter string
+// and the autocrop setting if set to true.
 func compileVF(tj *TranscodeJob) error {
 	var h bool
 	if strings.ToLower(tj.SourceMeta.Codec) == "vc1" {
@@ -200,10 +214,24 @@ func compileVF(tj *TranscodeJob) error {
 		}
 	}
 
-	if tj.JobDefinition.Video_filters != "" && c != "" {
-		tj.JobDefinition.Video_filters = strings.Join([]string{c, tj.JobDefinition.Video_filters}, ";")
-	} else if c != "" {
-		tj.JobDefinition.Video_filters = c
+	// parse the crop filter
+	s := strings.Split(c, ":")
+	sw, err := strconv.Atoi(s[0])
+	if err != nil {
+		sw = 0
+	}
+	sh, err := strconv.Atoi(s[1])
+	if err != nil {
+		sh = 0
+	}
+
+	// only add the crop filter if it's actually going to reduce the number of pixels running through the pipeline.
+	if sw != tj.SourceMeta.Width || sh != tj.SourceMeta.Height {
+		if tj.JobDefinition.Video_filters != "" && c != "" {
+			tj.JobDefinition.Video_filters = strings.Join([]string{c, tj.JobDefinition.Video_filters}, ",")
+		} else if c != "" {
+			tj.JobDefinition.Video_filters = c
+		}
 	}
 
 	tx, err := db.Begin()
@@ -245,6 +273,7 @@ func finishJob(tj *TranscodeJob, args []string) error {
 	rm := `
 	DELETE FROM transcode_queue WHERE id = ?;
 	DELETE FROM active_job WHERE id = ?;
+	DELETE FROM source_metadata WHERE id = ?;
 	`
 	tx, err := db.Begin()
 	if err != nil {

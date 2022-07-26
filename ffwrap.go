@@ -124,6 +124,8 @@ func probeMetadata(s string) (MediaMetadata, error) {
 	return MediaMetadata{
 		TotalFrames: 0,
 		Codec:       ffp.Streams[0].Codec,
+		Width:       ffp.Streams[0].Width,
+		Height:      ffp.Streams[0].Height,
 	}, nil
 }
 
