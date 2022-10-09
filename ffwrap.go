@@ -46,7 +46,7 @@ var (
 	// cdregex extracts the correct crop filter from an ffmpeg cropdetect run
 	cdregex = regexp.MustCompile(`t:([\d]*).*?(crop=[-\d:]*)`)
 	// tcpregex extracts the current transcode progress from a running transcode
-	tcpregex = regexp.MustCompile(`frame=[\s]*([\d]*).*speed=([\d\.x])*`)
+	// tcpregex = regexp.MustCompile(`frame=[\s]*([\d]*).*speed=([\d\.x])*`)
 	ffquiet  = []string{"-y", "-hide_banner", "-stats", "-loglevel", "error"}
 	ffcommon = []string{"-probesize", "6000M", "-analyzeduration", "6000M"}
 )
@@ -114,12 +114,7 @@ func probeMetadata(s string) (MediaMetadata, error) {
 
 	var ffp FfprobeOutput
 	json.Unmarshal(o, &ffp)
-	/*
-		nf, err := strconv.Atoi(ffp.Streams[0].Frames)
-		if err != nil {
-			logger.Errorf("%q", err)
-		}
-	*/
+
 	return MediaMetadata{
 		TotalFrames: 0,
 		Codec:       ffp.Streams[0].Codec,
@@ -150,17 +145,9 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	args = append(args, buildCodec(tj.JobDefinition.Codec, tj.JobDefinition.Crf)...)
 	args = append(args, "-c:a", "copy", "-c:s", "copy", "-c:t", "copy")
 	args = append(args, mapargs...)
-	args = append(args, tj.JobDefinition.Destination)
+	args = append(args, "-pix_fmt", "p010le", tj.JobDefinition.Destination)
 
 	cmd := exec.Command(ffmpegbinary, args...)
-
-	/*
-		ep, err := cmd.StderrPipe()
-		if err != nil {
-			logger.Errorf("failed to setup stderr pipe: %q", err)
-		}
-		go parseFfmpegStats(ep, tj.Id)
-	*/
 
 	logger.Infof("calling ffmpeg with args: %#v", args)
 	err := cmd.Run()
