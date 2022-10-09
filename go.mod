@@ -5,7 +5,6 @@ go 1.18
 require (
 	github.com/glebarez/go-sqlite v1.17.3
 	github.com/google/safehtml v0.0.2
-	github.com/kardianos/service v1.2.1
 )
 
 require (

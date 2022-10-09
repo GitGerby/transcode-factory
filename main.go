@@ -15,7 +15,7 @@
 package main
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
@@ -28,25 +28,25 @@ import (
 /*
 type program struct{}
 
-func (p *program) Start(s service.Service) error {
-	err := initdb()
-	if err != nil {
-		return err
+	func (p *program) Start(s service.Service) error {
+		err := initdb()
+		if err != nil {
+			return err
+		}
+		go launchapi()
+		go p.Run()
+		return nil
 	}
-	go launchapi()
-	go p.Run()
-	return nil
-}
 
-func (p *program) Run() error {
-	mainLoop()
-	return nil
-}
+	func (p *program) Run() error {
+		mainLoop()
+		return nil
+	}
 
-func (p *program) Stop(s service.Service) error {
-	db.Close()
-	return nil
-}
+	func (p *program) Stop(s service.Service) error {
+		db.Close()
+		return nil
+	}
 */
 type TranscodeRequest struct {
 	Source        string   `json:"source"`
@@ -240,7 +240,7 @@ func cropManager() {
 }
 
 func main() {
-	logger.Init("transcode-factory", true, true, ioutil.Discard)
+	logger.Init("transcode-factory", true, true, io.Discard)
 	var err error
 	db, err = sql.Open("sqlite", databasefile)
 	if err != nil {
