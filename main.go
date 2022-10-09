@@ -204,7 +204,7 @@ func launchApi() {
 }
 
 func cropManager() {
-	ct := make(chan struct{}, 4)
+	ct := make(chan struct{}, 2)
 	logger.Infof("crop detect thread listening")
 	for {
 		tj, err := pullNextCrop()

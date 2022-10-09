@@ -36,14 +36,16 @@ const html_template = `
 <head>
 <meta http-equiv="refresh" content="10">
 <style>
-table, td, th {
-  border: 1px solid;
+	table, td, th {
+		border: 1px solid;
+	}
+
+	table {
+		width: 100%;
+		border-collapse: collapse;
+	}
 }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
 </style>
 </head>
 <body>
@@ -53,13 +55,13 @@ table {
 	{{range .ActiveJobs}}
 	<table>
 		<tr>
-			<th>
+			<th style="text-align:left">
 				Job ID:
 			</th>
 			<td>
 				{{.Id}}
 			</td>
-			<th>
+			<th style="text-align:left">
 				Stage:
 			</th>
 			<td>
@@ -67,35 +69,35 @@ table {
 			</td>
 		</tr>
 		<tr>
-			<th>
+			<th style="text-align:left">
 				Source:
 			</th>
 			<td> 
 				{{.JobDefinition.Source}} 
 			</td>
-			<th>
-				CODEC/CRF:
+			<th style="text-align:left">
+				Codec:
 			</th>
 			<td>
-			{{.JobDefinition.Codec}} / {{.JobDefinition.Crf}} 
+			{{.SourceMeta.Codec}} 
 			</td>
 		</tr>
 		<tr>
-			<th>
+			<th style="text-align:left">
 				Destination:
 			</th>
 			<td>
 				{{.JobDefinition.Destination}}<br>
 			</td>
-			<th>
-				Video Filter:
+			<th style="text-align:left">
+				Codec / Crf:
 			</th>
 			<td>
-				{{.JobDefinition.Video_filters}}
+				{{.JobDefinition.Codec}} / {{.JobDefinition.Crf}}
 			</td>
 		</tr>
 		<tr>
-			<th>
+			<th style="text-align:left">
 				Subtitles:
 			</th>
 			<td colspan = "0">
@@ -104,6 +106,12 @@ table {
 						<li>{{.}}</li>
 					{{end}}
 				</ol>
+			</td>
+			<th style="text-align:left">
+				Video Filter:
+			</th>
+			<td>
+				{{.JobDefinition.Video_filters}}
 			</td>
 		</tr>
 	</table>
@@ -151,7 +159,7 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 
 	// first query for queue items
 	q, err := tx.Query(`
-  SELECT id, source, destination, IFNULL(crf,18), IFNULL(autocrop,1), srt_files 
+  SELECT id, source, destination, codec, IFNULL(crf,18), IFNULL(autocrop,1), srt_files 
   FROM transcode_queue
 	WHERE id not in (SELECT id FROM active_job)
   ORDER BY id ASC
@@ -164,7 +172,7 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 	// parse queue into datastructure
 	for q.Next() {
 		var r TranscodeJob
-		err := q.Scan(&r.Id, &r.JobDefinition.Source, &r.JobDefinition.Destination, &r.JobDefinition.Crf, &r.JobDefinition.Autocrop, &srtj)
+		err := q.Scan(&r.Id, &r.JobDefinition.Source, &r.JobDefinition.Destination, &r.JobDefinition.Codec, &r.JobDefinition.Crf, &r.JobDefinition.Autocrop, &srtj)
 		if err != nil && err != sql.ErrNoRows {
 			fmt.Fprintf(w, "fatal error scanning db response for queue: %#v", err)
 			return
@@ -180,8 +188,23 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 
 	// query for active jobs
 	a, err := tx.Query(`
-	SELECT transcode_queue.id, source, destination, job_state, IFNULL(current_frame,0), IFNULL(total_frames,0), IFNULL(video_filters, "empty"), srt_files, crf
-	FROM transcode_queue JOIN active_job ON transcode_queue.id = active_job.id`)
+	SELECT 
+		transcode_queue.id,
+		source,
+		destination,
+		job_state,
+		IFNULL(current_frame,0),
+		IFNULL(total_frames,0),
+		IFNULL(video_filters, "empty"),
+		srt_files,
+		crf,
+		source_metadata.codec as source_codec,
+		transcode_queue.codec as destination_codec
+	FROM transcode_queue
+		JOIN (active_job 
+			LEFT JOIN source_metadata 
+				ON source_metadata.id = active_job.id)
+			ON transcode_queue.id = active_job.id`)
 	if err != nil {
 		logger.Errorf("error fetching active jobs: %q", err)
 		return
@@ -189,7 +212,7 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 	defer a.Close()
 	for a.Next() {
 		var r TranscodeJob
-		err = a.Scan(&r.Id, &r.JobDefinition.Source, &r.JobDefinition.Destination, &r.State, &r.CurrentFrame, &r.SourceMeta.TotalFrames, &r.JobDefinition.Video_filters, &srtj, &r.JobDefinition.Crf)
+		err = a.Scan(&r.Id, &r.JobDefinition.Source, &r.JobDefinition.Destination, &r.State, &r.CurrentFrame, &r.SourceMeta.TotalFrames, &r.JobDefinition.Video_filters, &srtj, &r.JobDefinition.Crf, &r.SourceMeta.Codec, &r.JobDefinition.Codec)
 
 		if err := json.Unmarshal(srtj, &r.JobDefinition.Srt_files); err != nil {
 			logger.Error("failed to unmarshall queue srt file")
