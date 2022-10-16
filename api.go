@@ -198,7 +198,7 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 		IFNULL(video_filters, "empty"),
 		srt_files,
 		crf,
-		source_metadata.codec as source_codec,
+		IFNULL(source_metadata.codec, "unknown") as source_codec,
 		transcode_queue.codec as destination_codec
 	FROM transcode_queue
 		JOIN (active_job 

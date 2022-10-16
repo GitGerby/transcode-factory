@@ -14,11 +14,9 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -44,33 +42,10 @@ const (
 
 var (
 	// cdregex extracts the correct crop filter from an ffmpeg cropdetect run
-	cdregex = regexp.MustCompile(`t:([\d]*).*?(crop=[-\d:]*)`)
-	// tcpregex extracts the current transcode progress from a running transcode
-	// tcpregex = regexp.MustCompile(`frame=[\s]*([\d]*).*speed=([\d\.x])*`)
+	cdregex  = regexp.MustCompile(`t:([\d]*).*?(crop=[-\d:]*)`)
 	ffquiet  = []string{"-y", "-hide_banner", "-stats", "-loglevel", "error"}
 	ffcommon = []string{"-probesize", "6000M", "-analyzeduration", "6000M"}
 )
-
-func parseFfmpegStats(p io.ReadCloser, j int) {
-	scanner := bufio.NewScanner(p)
-	for scanner.Scan() {
-		m := tcpregex.FindAllStringSubmatch(scanner.Text(), -1)
-		if m != nil {
-			tx, err := db.Begin()
-			if err != nil {
-				continue
-			}
-			defer tx.Rollback()
-			_, err = tx.Exec(`
-			UPDATE active_job SET current_frame = ?, speed = ? WHERE id = ?
-			`, m[len(m)-1][1], m[len(m)-1][2], j)
-			if err != nil {
-				logger.Errorf("failed to update job status: %#v", err)
-			}
-			tx.Commit()
-		}
-	}
-}
 
 func detectCrop(s string, hwaccel bool) (string, error) {
 	var args []string
@@ -145,12 +120,23 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	args = append(args, buildCodec(tj.JobDefinition.Codec, tj.JobDefinition.Crf)...)
 	args = append(args, "-c:a", "copy", "-c:s", "copy", "-c:t", "copy")
 	args = append(args, mapargs...)
-	args = append(args, "-pix_fmt", "p010le", tj.JobDefinition.Destination)
+	args = append(args, tj.JobDefinition.Destination)
 
 	cmd := exec.Command(ffmpegbinary, args...)
 
+	/*sep, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stderr pipe: %q", err)
+	}
+	*/
+
 	logger.Infof("calling ffmpeg with args: %#v", args)
-	err := cmd.Run()
+	err := cmd.Start()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start ffmpeg: %q", err)
+	}
+
+	err = cmd.Wait()
 	if err != nil {
 		co, _ := cmd.CombinedOutput()
 		return nil, fmt.Errorf("ffmpeg exec error: %q, %q", err, string(co))
@@ -164,6 +150,7 @@ func buildCodec(codec string, crf int) []string {
 		return []string{"-c:v", "copy"}
 	default:
 		return []string{
+			"-pix_fmt", "p010le",
 			"-c:v", "hevc_nvenc",
 			"-rc", "1",
 			"-cq", fmt.Sprintf("%d", crf),
@@ -176,3 +163,15 @@ func buildCodec(codec string, crf int) []string {
 		}
 	}
 }
+
+/*
+func readStatsSream(stream io.ReadCloser, id int) {
+	r := bufio.NewScanner(stream)
+
+	for r.Scan() {
+
+	}
+
+
+}
+*/

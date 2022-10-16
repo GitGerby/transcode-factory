@@ -25,29 +25,6 @@ import (
 	"github.com/google/logger"
 )
 
-/*
-type program struct{}
-
-	func (p *program) Start(s service.Service) error {
-		err := initdb()
-		if err != nil {
-			return err
-		}
-		go launchapi()
-		go p.Run()
-		return nil
-	}
-
-	func (p *program) Run() error {
-		mainLoop()
-		return nil
-	}
-
-	func (p *program) Stop(s service.Service) error {
-		db.Close()
-		return nil
-	}
-*/
 type TranscodeRequest struct {
 	Source        string   `json:"source"`
 	Destination   string   `json:"destination"`
@@ -253,22 +230,5 @@ func main() {
 
 	launchApi()
 	go cropManager()
-	//go probeManager()
 	mainLoop()
-	/*
-		svConfig := &service.Config{
-			Name:        "Transcode-Factory",
-			DisplayName: "Transcode-Factory",
-			Description: "Service to automatically invoke ffmpeg.",
-		}
-		prg := &program{}
-		s, err := service.New(prg, svConfig)
-		if err != nil {
-			logger.Fatal(err)
-		}
-		if err := s.Run(); err != nil {
-			logger.Fatalf("%q", err)
-		}
-		return
-	*/
 }
