@@ -15,6 +15,7 @@
 package main
 
 import (
+	"flag"
 	"io"
 	"net/http"
 	"time"
@@ -23,7 +24,10 @@ import (
 
 	_ "github.com/glebarez/go-sqlite"
 	"github.com/google/logger"
+	"github.com/kardianos/service"
 )
+
+type program struct{}
 
 type TranscodeRequest struct {
 	Source        string   `json:"source"`
@@ -70,6 +74,31 @@ var (
 	databasefile = "f:/transcode-factory.db?_pragma=busy_timeout(5000)"
 	db           *sql.DB
 )
+
+func (p *program) Start(s service.Service) error {
+	go p.Run()
+	return nil
+}
+
+func (p *program) Run() {
+	var err error
+	db, err = sql.Open("sqlite", databasefile)
+	if err != nil {
+		logger.Fatalf("failed to connect to db: %v", err)
+	}
+	defer db.Close()
+	if err := initdb(); err != nil {
+		logger.Fatalf("failed to prepare database: %v", err)
+	}
+
+	launchApi()
+	go cropManager()
+	mainLoop()
+}
+
+func (p *program) Stop(s service.Service) error {
+	return nil
+}
 
 func initdb() error {
 	if _, err := db.Exec(`
@@ -218,17 +247,31 @@ func cropManager() {
 
 func main() {
 	logger.Init("transcode-factory", true, true, io.Discard)
-	var err error
-	db, err = sql.Open("sqlite", databasefile)
-	if err != nil {
-		logger.Fatalf("failed to connect to db: %v", err)
-	}
-	defer db.Close()
-	if err := initdb(); err != nil {
-		logger.Fatalf("failed to prepare database: %v", err)
+
+	svcFlag := flag.String("service", "", "Control the system service.")
+	flag.Parse()
+
+	svcConfig := &service.Config{
+		Name:        "TranscodeFactory",
+		DisplayName: "Transcode factory service",
+		Description: "Service that listens for transcode jobs and acts on them.",
 	}
 
-	launchApi()
-	go cropManager()
-	mainLoop()
+	prg := &program{}
+
+	s, err := service.New(prg, svcConfig)
+	if err != nil {
+		logger.Fatalf("service.New failed: %q", err)
+	}
+
+	if len(*svcFlag) != 0 {
+		err := service.Control(s, *svcFlag)
+		if err != nil {
+			logger.Errorf("valid service actions: %q", service.ControlAction)
+			logger.Fatalf("failed to execute service action: %q", err)
+		}
+		return
+	}
+
+	s.Run()
 }

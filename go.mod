@@ -7,6 +7,8 @@ require (
 	github.com/google/safehtml v0.0.2
 )
 
+require github.com/kardianos/service v1.2.2
+
 require (
 	github.com/google/logger v1.1.1
 	github.com/google/uuid v1.3.0 // indirect
