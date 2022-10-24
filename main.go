@@ -112,7 +112,7 @@ func initdb() error {
     video_filters TEXT,
     audio_filters TEXT,
     autocrop INTEGER,
-		crop_complete INTEGER
+		crop_complete INTEGER DEFAULT 0
   );
 
   DROP TABLE IF EXISTS active_job;
