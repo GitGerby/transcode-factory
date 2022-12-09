@@ -199,7 +199,7 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 		srt_files,
 		crf,
 		IFNULL(source_metadata.codec, "unknown") as source_codec,
-		transcode_queue.codec as destination_codec
+		IFNULL(transcode_queue.codec, "hevc_nvenc") as destination_codec
 	FROM transcode_queue
 		JOIN (active_job 
 			LEFT JOIN source_metadata 
