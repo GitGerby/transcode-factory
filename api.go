@@ -52,8 +52,8 @@ const html_template = `
 	<h1>transcode-factory status</h1><br>
 	<h2>Active Jobs</h2>
 	Currently running jobs: {{len .ActiveJobs}}
-	{{range .ActiveJobs}}
 	<table>
+		{{range .ActiveJobs}}
 		<tr>
 			<th style="text-align:left">
 				Job ID:
@@ -114,8 +114,8 @@ const html_template = `
 				{{.JobDefinition.Video_filters}}
 			</td>
 		</tr>
+		{{end}}
 	</table>
-	{{end}}
 	<h2>Current Queue</h2><br>
 	Queue Length: {{len .TranscodeQueue}}
   <table>
@@ -199,7 +199,7 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 		srt_files,
 		crf,
 		IFNULL(source_metadata.codec, "unknown") as source_codec,
-		transcode_queue.codec as destination_codec
+		IFNULL(transcode_queue.codec, "hevc_nvenc") as destination_codec
 	FROM transcode_queue
 		JOIN (active_job 
 			LEFT JOIN source_metadata 
