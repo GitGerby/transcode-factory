@@ -199,7 +199,7 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 		srt_files,
 		crf,
 		IFNULL(source_metadata.codec, "unknown") as source_codec,
-		IFNULL(transcode_queue.codec, "hevc_nvenc") as destination_codec
+		transcode_queue.codec as destination_codec
 	FROM transcode_queue
 		JOIN (active_job 
 			LEFT JOIN source_metadata 
@@ -272,6 +272,11 @@ func newtranscode(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	if len(j.Codec) == 0 {
+		j.Codec = "hevc_nvenc"
+	}
+
 	i, err := stmt.Exec(j.Source, j.Destination, j.Crf, s, j.Autocrop, j.Video_filters, j.Audio_filters, j.Codec)
 	if err != nil {
 		tx.Rollback()
