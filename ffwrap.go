@@ -17,7 +17,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -107,7 +109,7 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 
 	args = append(args, "-i", tj.JobDefinition.Source)
 
-	mapargs := []string{"-map", "0:m:language:eng?"}
+	mapargs := []string{"-map", "0:v", "-map", "0:a:m:language:eng?", "-map", "0:s:m:language:eng?", "-map", "0:t?"}
 	if len(tj.JobDefinition.Srt_files) > 0 {
 		for m, i := range tj.JobDefinition.Srt_files {
 			args = append(args, "-i", i)
@@ -122,25 +124,26 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	args = append(args, mapargs...)
 	args = append(args, tj.JobDefinition.Destination)
 
-	cmd := exec.Command(ffmpegbinary, args...)
-
-	/*sep, err := cmd.StderrPipe()
+	_, fp := filepath.Split(tj.JobDefinition.Destination)
+	logdest := fmt.Sprintf("f:/transcode_logs/%s.log", fp)
+	log, err := os.Create(logdest)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create stderr pipe: %q", err)
+		return nil, fmt.Errorf("failed to create log file: %v", err)
 	}
-	*/
 
+	cmd := exec.Command(ffmpegbinary, args...)
+	cmd.Stderr = log
+	cmd.Stdout = log
 	logger.Infof("calling ffmpeg with args: %#v", args)
-	err := cmd.Start()
+	err = cmd.Start()
 	if err != nil {
 		return nil, fmt.Errorf("failed to start ffmpeg: %q", err)
 	}
-
 	err = cmd.Wait()
 	if err != nil {
-		co, _ := cmd.CombinedOutput()
-		return nil, fmt.Errorf("ffmpeg exec error: %q, %q", err, string(co))
+		return nil, fmt.Errorf("execution failed: %q check log at %q", err, logdest)
 	}
+
 	return args, nil
 }
 
@@ -148,6 +151,14 @@ func buildCodec(codec string, crf int) []string {
 	switch strings.ToLower(codec) {
 	case "copy":
 		return []string{"-c:v", "copy"}
+	case "libx265":
+		return []string{
+			"-c:v", "libx265",
+			"-crf", fmt.Sprintf("%d", crf),
+			"-preset", "medium",
+			"-profile:v", "main10",
+			"-pix_fmt", "yuv420p10le",
+		}
 	default:
 		return []string{
 			"-pix_fmt", "p010le",

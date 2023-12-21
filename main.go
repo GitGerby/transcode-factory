@@ -22,9 +22,9 @@ import (
 
 	"database/sql"
 
-	_ "github.com/glebarez/go-sqlite"
 	"github.com/google/logger"
 	"github.com/kardianos/service"
+	_ "modernc.org/sqlite"
 )
 
 type program struct{}
