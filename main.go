@@ -15,15 +15,21 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"sync"
 	"time"
 
 	"database/sql"
 
 	"github.com/google/logger"
 	"github.com/kardianos/service"
+	"golang.org/x/sync/errgroup"
 	_ "modernc.org/sqlite"
 )
 
@@ -71,8 +77,15 @@ const (
 )
 
 var (
-	databasefile = "f:/transcode-factory.db?_pragma=busy_timeout(5000)"
-	db           *sql.DB
+	databasefile       string
+	db                 *sql.DB
+	ctx                context.Context
+	stop_ctx           func()
+	ffmpegbinary       string
+	ffprobebinary      string
+	transcode_log_path string
+	muCopy             sync.Mutex
+	queueCopy          []*TranscodeJob
 )
 
 func (p *program) Start(s service.Service) error {
@@ -82,7 +95,21 @@ func (p *program) Start(s service.Service) error {
 
 func (p *program) Run() {
 	var err error
+	// Create context and setup for service stop
+	ctx, stop_ctx = context.WithCancel(context.Background())
+
+	// Find and connect to the database
+	dbpenv := os.Getenv("TF_DB_PATH")
+	if dbpenv != "" {
+		databasefile = fmt.Sprintf("%s?_pragma=busy_timeout(5000)", dbpenv)
+	} else {
+		databasefile = filepath.Join(os.Getenv("PROGRAMDATA"), "TranscodeFactory", "transcodefactory.db?_pragma=busy_timeout(5000)")
+	}
+	if err := os.MkdirAll(filepath.Dir(databasefile), 0644); err != nil {
+		logger.Fatalf("failed to create directory for database file: %v", err)
+	}
 	db, err = sql.Open("sqlite", databasefile)
+
 	if err != nil {
 		logger.Fatalf("failed to connect to db: %v", err)
 	}
@@ -91,12 +118,45 @@ func (p *program) Run() {
 		logger.Fatalf("failed to prepare database: %v", err)
 	}
 
+	// Find ffmpeg binary to use
+	ffmenv := os.Getenv("TF_FFMPEG")
+	if ffmenv != "" {
+		ffmpegbinary = ffmenv
+	} else {
+		// default to using ffmpeg from PATH
+		ffmpegbinary = "ffmpeg.exe"
+	}
+
+	// Find ffprobe binary to use
+	ffpenv := os.Getenv("TF_FFMPEG")
+	if ffpenv != "" {
+		ffprobebinary = ffpenv
+	} else {
+		// default to using ffmpeg from PATH
+		ffprobebinary = "ffprobe.exe"
+	}
+
+	tflpenv := os.Getenv("TF_LOG_PATH")
+	if tflpenv != "" {
+		transcode_log_path = tflpenv
+	} else {
+		transcode_log_path = filepath.Join(os.Getenv("PROGRAMDATA"), "TranscodeFactory", "encoder_logs")
+	}
+	if err := os.MkdirAll(transcode_log_path, 0644); err != nil {
+		logger.Errorf("failed to create transcode log directory: %v", err)
+	}
+
+	// Begin execution
 	launchApi()
 	go cropManager()
+	go copyManager()
 	mainLoop()
 }
 
 func (p *program) Stop(s service.Service) error {
+	logger.Info("Service received stop request")
+	stop_ctx()
+	db.Close()
 	return nil
 }
 
@@ -108,11 +168,11 @@ func initdb() error {
     destination TEXT,
     crf INTEGER,
     srt_files BLOB,
-		codec TEXT,
+	codec TEXT,
     video_filters TEXT,
     audio_filters TEXT,
     autocrop INTEGER,
-		crop_complete INTEGER DEFAULT 0
+	crop_complete INTEGER DEFAULT 0
   );
 
   DROP TABLE IF EXISTS active_job;
@@ -178,7 +238,7 @@ func mainLoop() {
 			logger.Errorf("ffprobe failed: %v", err)
 			tj.State = Failed
 			if err := finishJob(&tj, nil); err != nil {
-				logger.Fatal("failed to cleanup job: %q", err)
+				logger.Fatalf("failed to cleanup job: %q", err)
 			}
 			continue
 		}
@@ -243,6 +303,50 @@ func cropManager() {
 			<-ct
 		}(&tj)
 	}
+}
+
+func copyManager() {
+	cwg := new(errgroup.Group)
+	// don't run more than 2 copy threads at a time.
+	cwg.SetLimit(2)
+	logger.Info("copy manager waiting")
+
+	for {
+		if len(queueCopy) == 0 {
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		tj := dequeueCopy()
+		cwg.Go(func() error {
+			args, err := ffmpegTranscode(*tj)
+			if err != nil {
+				logger.Errorf("job id %d: failed to run ffmpeg copy with args: %v", tj.Id, args)
+				if err := finishJob(tj, nil); err != nil {
+					logger.Fatalf("failed to cleanup job: %q", err)
+				}
+			}
+			updateJobStatus(tj.Id, Complete)
+			tj.State = Complete
+			finishJob(tj, args)
+			logger.Infof("job id %d: complete", tj.Id)
+			return nil
+		})
+	}
+}
+
+func dequeueCopy() *TranscodeJob {
+	muCopy.Lock()
+	defer func() { muCopy.Unlock() }()
+	nextCopy := queueCopy[0]
+	queueCopy = queueCopy[1:]
+	return nextCopy
+}
+
+func enqueueCopy(tj *TranscodeJob) {
+	muCopy.Lock()
+	defer func() { muCopy.Unlock() }()
+	queueCopy = append(queueCopy, tj)
 }
 
 func main() {

@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/google/logger"
 )
@@ -31,21 +32,17 @@ type FfprobeOutput struct {
 }
 
 type FfprobeStreams struct {
-	Codec  string `json:"codec_name"`
-	Frames string `json:"nb_read_frames"`
-	Width  int    `json:"width"`
-	Height int    `json:"height"`
+	Codec      string `json:"codec_name"`
+	Codec_type string `json:"codec_type"`
+	Frames     string `json:"nb_read_frames"`
+	Width      int    `json:"width"`
+	Height     int    `json:"height"`
 }
-
-const (
-	ffmpegbinary  = "f:/ffmpeg/ffmpeg.exe"
-	ffprobebinary = "f:/ffmpeg/ffprobe.exe"
-)
 
 var (
 	// cdregex extracts the correct crop filter from an ffmpeg cropdetect run
 	cdregex  = regexp.MustCompile(`t:([\d]*).*?(crop=[-\d:]*)`)
-	ffquiet  = []string{"-y", "-hide_banner", "-stats", "-loglevel", "error"}
+	ffquiet  = []string{"-y", "-hide_banner", "-stats"}
 	ffcommon = []string{"-probesize", "6000M", "-analyzeduration", "6000M"}
 )
 
@@ -58,7 +55,7 @@ func detectCrop(s string, hwaccel bool) (string, error) {
 
 	var sout, serr bytes.Buffer
 	logger.Infof("cropdetect with args %#v", args)
-	cmd := exec.Command(ffmpegbinary, args...)
+	cmd := exec.CommandContext(ctx, ffmpegbinary, args...)
 	cmd.Stdout = &sout
 	cmd.Stderr = &serr
 	if err := cmd.Run(); err != nil {
@@ -80,7 +77,7 @@ func probeMetadata(s string) (MediaMetadata, error) {
 		"stream=codec_name,width,height,", "-print_format", "json", s,
 	}
 	logger.Infof("calling ffprobe with: %#v", args)
-	cmd := exec.Command(ffprobebinary, args...)
+	cmd := exec.CommandContext(ctx, ffprobebinary, args...)
 	o, err := cmd.CombinedOutput()
 	if err != nil {
 		return MediaMetadata{}, fmt.Errorf("failed to count frames: %v", err)
@@ -109,11 +106,13 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 
 	args = append(args, "-i", tj.JobDefinition.Source)
 
-	mapargs := []string{"-map", "0:v", "-map", "0:a:m:language:eng?", "-map", "0:s:m:language:eng?", "-map", "0:t?"}
+	mapargs := []string{"-map", "0:v:0", "-map", "0:a:m:language:eng?", "-map", "0:s:m:language:eng?", "-map", "0:t?"}
 	if len(tj.JobDefinition.Srt_files) > 0 {
 		for m, i := range tj.JobDefinition.Srt_files {
-			args = append(args, "-i", i)
-			mapargs = append(mapargs, "-map", fmt.Sprintf("%d", m+1), "-metadata:s:s", "language=eng")
+			if len(i) > 0 {
+				args = append(args, "-i", i)
+				mapargs = append(mapargs, "-map", fmt.Sprintf("%d", m+1), "-metadata:s:s", "language=eng")
+			}
 		}
 	}
 	if strings.ToLower(tj.JobDefinition.Codec) != "copy" && tj.JobDefinition.Video_filters != "" {
@@ -125,13 +124,13 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	args = append(args, tj.JobDefinition.Destination)
 
 	_, fp := filepath.Split(tj.JobDefinition.Destination)
-	logdest := fmt.Sprintf("f:/transcode_logs/%s.log", fp)
+	logdest := filepath.Join(transcode_log_path, fmt.Sprintf("%s_%d.log", fp, time.Now().UnixNano()))
 	log, err := os.Create(logdest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create log file: %v", err)
 	}
 
-	cmd := exec.Command(ffmpegbinary, args...)
+	cmd := exec.CommandContext(ctx, ffmpegbinary, args...)
 	cmd.Stderr = log
 	cmd.Stdout = log
 	logger.Infof("calling ffmpeg with args: %#v", args)
@@ -148,18 +147,27 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 }
 
 func buildCodec(codec string, crf int) []string {
+	libx265 := []string{
+		"-c:v", "libx265",
+		"-crf", fmt.Sprintf("%d", crf),
+		"-preset", "medium",
+		"-profile:v", "main10",
+		"-pix_fmt", "yuv420p10le",
+	}
+	libsvtav1 := []string{
+		"-c:v", "libsvtav1",
+		"-crf", fmt.Sprintf("%d", crf),
+		"-preset", "7",
+		"-svtav1-params", "tune=0:enable-overlays=1",
+		"-pix_fmt", "yuv420p10le",
+	}
+
 	switch strings.ToLower(codec) {
 	case "copy":
 		return []string{"-c:v", "copy"}
-	case "libx265":
-		return []string{
-			"-c:v", "libx265",
-			"-crf", fmt.Sprintf("%d", crf),
-			"-preset", "medium",
-			"-profile:v", "main10",
-			"-pix_fmt", "yuv420p10le",
-		}
-	default:
+	case "libsvtav1":
+		return libsvtav1
+	case "hevc_nvenc":
 		return []string{
 			"-pix_fmt", "p010le",
 			"-c:v", "hevc_nvenc",
@@ -172,17 +180,9 @@ func buildCodec(codec string, crf int) []string {
 			"-preset", "1",
 			"-b_ref_mode", "2",
 		}
+	case "libx265":
+		return libx265
+	default:
+		return libx265
 	}
 }
-
-/*
-func readStatsSream(stream io.ReadCloser, id int) {
-	r := bufio.NewScanner(stream)
-
-	for r.Scan() {
-
-	}
-
-
-}
-*/

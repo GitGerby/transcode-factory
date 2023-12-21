@@ -144,8 +144,6 @@ const html_template = `
 </body>
 `
 
-// const html_template = `{{ printf "%#v" .ActiveJob}}`
-
 func display_rows(w http.ResponseWriter, req *http.Request) {
 	// setup required variables
 	var srtj []byte

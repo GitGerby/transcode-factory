@@ -256,13 +256,20 @@ func compileVF(tj *TranscodeJob) error {
 
 func transcodeMedia(tj *TranscodeJob) ([]string, error) {
 	// make sure the dest directory exists or create it
-
-	logger.Infof("making path: %s", filepath.Dir(tj.JobDefinition.Destination))
+	logger.Infof("making path: %q", filepath.Dir(tj.JobDefinition.Destination))
 	err := os.MkdirAll(filepath.Dir(tj.JobDefinition.Destination), 0664)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create destination directory: %q", err)
 	}
-	return ffmpegTranscode(*tj)
+
+	// run the transcoder
+	switch tj.JobDefinition.Codec {
+	case "copy":
+		enqueueCopy(tj)
+		return []string{"enqueued copy"}, nil
+	default:
+		return ffmpegTranscode(*tj)
+	}
 }
 
 func finishJob(tj *TranscodeJob, args []string) error {
