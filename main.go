@@ -128,7 +128,7 @@ func (p *program) Run() {
 	}
 
 	// Find ffprobe binary to use
-	ffpenv := os.Getenv("TF_FFMPEG")
+	ffpenv := os.Getenv("TF_FFPROBE")
 	if ffpenv != "" {
 		ffprobebinary = ffpenv
 	} else {

@@ -21,11 +21,43 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/logger"
 )
+
+type colorCoords struct {
+	Coordinates string
+}
+
+type colorInfoWrapper struct {
+	Frames []colorInfo `json:"frames"`
+}
+
+type colorInfo struct {
+	Color_space     string          `json:"color_space"`
+	Color_primaries string          `json:"color_primaries"`
+	Color_transfer  string          `json:"color_transfer"`
+	Side_data_list  []colorSideInfo `json:"side_data_list"`
+}
+
+type colorSideInfo struct {
+	Side_data_type string `json:"side_data_type"`
+	Red_x          string `json:"red_x"`
+	Red_y          string `json:"red_y"`
+	Green_x        string `json:"green_x"`
+	Green_y        string `json:"green_y"`
+	Blue_x         string `json:"Blue_x"`
+	Blue_y         string `json:"Blue_y"`
+	White_point_x  string `json:"White_point_x"`
+	White_point_y  string `json:"White_point_y"`
+	Min_luminance  string `json:"Min_luminance"`
+	Max_luminance  string `json:"Max_luminance"`
+	Max_content    int    `json:"Max_content"`
+	Max_average    int    `json:"Max_average"`
+}
 
 type FfprobeOutput struct {
 	Streams []FfprobeStreams
@@ -44,6 +76,11 @@ var (
 	cdregex  = regexp.MustCompile(`t:([\d]*).*?(crop=[-\d:]*)`)
 	ffquiet  = []string{"-y", "-hide_banner", "-stats"}
 	ffcommon = []string{"-probesize", "6000M", "-analyzeduration", "6000M"}
+)
+
+const (
+	side_data_type_mastering   = "Mastering display metadata"
+	side_data_type_light_level = "Content light level metadata"
 )
 
 func detectCrop(s string, hwaccel bool) (string, error) {
@@ -118,7 +155,13 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	if strings.ToLower(tj.JobDefinition.Codec) != "copy" && tj.JobDefinition.Video_filters != "" {
 		args = append(args, "-vf", tj.JobDefinition.Video_filters)
 	}
-	args = append(args, buildCodec(tj.JobDefinition.Codec, tj.JobDefinition.Crf)...)
+
+	colorMeta, err := parseColorInfo(tj.JobDefinition.Source)
+	if err != nil {
+		logger.Errorf("failed to parse color metadata: %v", err)
+	}
+	logger.Infof("got color metadata: %#v", colorMeta)
+	args = append(args, buildCodec(tj.JobDefinition.Codec, tj.JobDefinition.Crf, colorMeta)...)
 	args = append(args, "-c:a", "copy", "-c:s", "copy", "-c:t", "copy")
 	args = append(args, mapargs...)
 	args = append(args, tj.JobDefinition.Destination)
@@ -146,43 +189,281 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	return args, nil
 }
 
-func buildCodec(codec string, crf int) []string {
+func parseColorInfo(input string) (colorInfo, error) {
+	args := []string{
+		"-hide_banner",
+		"-loglevel", "warning",
+		"-select_streams", "v:0",
+		"-analyzeduration", "6000M",
+		"-probesize", "6000M",
+		"-print_format", "json",
+		"-show_frames",
+		"-read_intervals", "%+#1",
+		"-show_entries", "frame=color_space,color_primaries,color_transfer,side_data_list,pix_fmt",
+		"-i", input,
+	}
+	logger.Infof("parsing color info, calling ffprobe with args: %#v", args)
+	cmd := exec.CommandContext(ctx, ffprobebinary, args...)
+	o, err := cmd.CombinedOutput()
+	if err != nil || cmd.ProcessState.ExitCode() != 0 {
+		return colorInfo{}, fmt.Errorf("failed to extract color information err: %v output: %s exit code: %d", err, o, cmd.ProcessState.ExitCode())
+	}
+
+	var ci colorInfoWrapper
+	if err := json.Unmarshal(o, &ci); err != nil {
+		return colorInfo{}, fmt.Errorf("failed to unmarshal color info from ffprobe: %v", err)
+	}
+
+	return ci.Frames[0], nil
+}
+
+func evalColorCoordinateAv1(colorFrac string) (float64, error) {
+	splits := strings.Split(colorFrac, "/")
+	n, err := strconv.ParseFloat(splits[0], 64)
+	if err != nil {
+		return 0, err
+	}
+
+	d, err := strconv.ParseFloat(splits[1], 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return n / d, nil
+}
+
+func evalColorCoordinate265(colorFrac string) (int, error) {
+	splits := strings.Split(colorFrac, "/")
+	n, err := strconv.Atoi(splits[0])
+	if err != nil {
+		return 0, err
+	}
+
+	d, err := strconv.Atoi(splits[1])
+	if err != nil {
+		return 0, err
+	}
+
+	return n * (50000 / d), nil
+}
+
+func evalLumCoordinate265(colorFrac string) (int, error) {
+	splits := strings.Split(colorFrac, "/")
+	n, err := strconv.Atoi(splits[0])
+	if err != nil {
+		return 0, err
+	}
+
+	d, err := strconv.Atoi(splits[1])
+	if err != nil {
+		return 0, err
+	}
+
+	return n * (10000 / d), nil
+}
+
+func parseColorCoordsAv1(csi colorSideInfo) (colorCoords, error) {
+	/*
+		if strings.EqualFold(csi.Side_data_type, side_data_type_mastering) {
+			return colorCoords{}, fmt.Errorf("got side data type: %v, can only parse from %s", csi.Side_data_type, side_data_type_mastering)
+		}
+	*/
+	rx, err := evalColorCoordinateAv1(csi.Red_x)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval red x: %v", err)
+	}
+	ry, err := evalColorCoordinateAv1(csi.Red_y)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval red y: %v", err)
+	}
+	r := fmt.Sprintf("R(%f,%f)", rx, ry)
+	gx, err := evalColorCoordinateAv1(csi.Green_x)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval green x: %v", err)
+	}
+	gy, err := evalColorCoordinateAv1(csi.Green_y)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval green y: %v", err)
+	}
+	g := fmt.Sprintf("G(%f,%f)", gx, gy)
+	bx, err := evalColorCoordinateAv1(csi.Blue_x)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval blue x: %v", err)
+	}
+	by, err := evalColorCoordinateAv1(csi.Blue_y)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval blue y: %v", err)
+	}
+	b := fmt.Sprintf("B(%f,%f)", bx, by)
+	wx, err := evalColorCoordinateAv1(csi.White_point_x)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval wpx: %v", err)
+	}
+	wy, err := evalColorCoordinateAv1(csi.White_point_y)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval wpy: %v", err)
+	}
+	wp := fmt.Sprintf("WP(%f,%f)", wx, wy)
+	maxl, err := evalColorCoordinateAv1(csi.Max_luminance)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval maxl: %v", err)
+	}
+	minl, err := evalColorCoordinateAv1(csi.Min_luminance)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval minl: %v", err)
+	}
+	lm := fmt.Sprintf("L(%f,%f)", maxl, minl)
+
+	return colorCoords{g + b + r + wp + lm}, nil
+}
+
+func parseColorCoords265(csi colorSideInfo) (colorCoords, error) {
+	rx, err := evalColorCoordinate265(csi.Red_x)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval red x: %v", err)
+	}
+	ry, err := evalColorCoordinate265(csi.Red_y)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval red y: %v", err)
+	}
+	r := fmt.Sprintf("R(%d,%d)", rx, ry)
+	gx, err := evalColorCoordinate265(csi.Green_x)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval green x: %v", err)
+	}
+	gy, err := evalColorCoordinate265(csi.Green_y)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval green y: %v", err)
+	}
+	g := fmt.Sprintf("G(%d,%d)", gx, gy)
+	bx, err := evalColorCoordinate265(csi.Blue_x)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval blue x: %v", err)
+	}
+	by, err := evalColorCoordinate265(csi.Blue_y)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval blue y: %v", err)
+	}
+	b := fmt.Sprintf("B(%d,%d)", bx, by)
+	wx, err := evalColorCoordinate265(csi.White_point_x)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval wpx: %v", err)
+	}
+	wy, err := evalColorCoordinate265(csi.White_point_y)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval wpy: %v", err)
+	}
+	wp := fmt.Sprintf("WP(%d,%d)", wx, wy)
+	maxl, err := evalLumCoordinate265(csi.Max_luminance)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval maxl: %v", err)
+	}
+	minl, err := evalLumCoordinate265(csi.Min_luminance)
+	if err != nil {
+		return colorCoords{}, fmt.Errorf("failed to eval minl: %v", err)
+	}
+	lm := fmt.Sprintf("L(%d,%d)", maxl, minl)
+
+	return colorCoords{g + b + r + wp + lm}, nil
+}
+
+func buildCodec(codec string, crf int, colorMeta colorInfo) []string {
 	libx265 := []string{
 		"-c:v", "libx265",
 		"-crf", fmt.Sprintf("%d", crf),
 		"-preset", "medium",
 		"-profile:v", "main10",
-		"-pix_fmt", "yuv420p10le",
 	}
+
 	libsvtav1 := []string{
 		"-c:v", "libsvtav1",
 		"-crf", fmt.Sprintf("%d", crf),
-		"-preset", "7",
-		"-svtav1-params", "tune=0:enable-overlays=1",
-		"-pix_fmt", "yuv420p10le",
+		"-preset", "6",
+		"-svtav1-params", "tune=0:enable-overlays=1:input-depth=10",
+	}
+
+	hevc_nvec := []string{
+		"-pix_fmt", "p010le",
+		"-c:v", "hevc_nvenc",
+		"-rc", "1",
+		"-cq", fmt.Sprintf("%d", crf),
+		"-profile:v", "1",
+		"-tier", "1",
+		"-spatial_aq", "1",
+		"-temporal_aq", "1",
+		"-preset", "1",
+		"-b_ref_mode", "2",
 	}
 
 	switch strings.ToLower(codec) {
 	case "copy":
 		return []string{"-c:v", "copy"}
 	case "libsvtav1":
-		return libsvtav1
-	case "hevc_nvenc":
-		return []string{
-			"-pix_fmt", "p010le",
-			"-c:v", "hevc_nvenc",
-			"-rc", "1",
-			"-cq", fmt.Sprintf("%d", crf),
-			"-profile:v", "1",
-			"-tier", "1",
-			"-spatial_aq", "1",
-			"-temporal_aq", "1",
-			"-preset", "1",
-			"-b_ref_mode", "2",
+		if colorMeta.Color_space != "" {
+			libsvtav1 = append([]string{"-colorspace", colorMeta.Color_space}, libsvtav1...)
 		}
-	case "libx265":
-		return libx265
+		if colorMeta.Color_primaries != "" {
+			libsvtav1 = append([]string{"-color_primaries:v", colorMeta.Color_primaries}, libsvtav1...)
+		}
+		if colorMeta.Color_transfer != "" {
+			libsvtav1 = append([]string{"-color_trc:v", colorMeta.Color_transfer}, libsvtav1...)
+		}
+		sargs := libsvtav1[len(libsvtav1)-1]
+		for _, sd := range colorMeta.Side_data_list {
+			switch strings.ToLower(sd.Side_data_type) {
+			case strings.ToLower(side_data_type_mastering):
+				sargs += ":enable-hdr=1"
+				cc, err := parseColorCoordsAv1(sd)
+				if err != nil {
+					logger.Errorf("failed to parse color coordinates: %v", err)
+					continue
+				}
+				md := fmt.Sprintf(":mastering-display=%s", cc.Coordinates)
+				sargs += md
+			case strings.ToLower(side_data_type_light_level):
+				cll := fmt.Sprintf(":content-light=%d,%d", sd.Max_content, sd.Max_average)
+				sargs += cll
+			}
+			sargs += ":chroma-sample-position=topleft"
+		}
+		libsvtav1[len(libsvtav1)-1] = sargs
+		return append(libsvtav1, "-pix_fmt", "yuv420p10le")
+
+	case "hevc_nvenc":
+		return hevc_nvec
 	default:
-		return libx265
+		x265params := []string{
+			"hdr-opt=1",
+			"repeat-headers=1",
+		}
+		if colorMeta.Color_space != "" {
+			libx265 = append([]string{"-colorspace", colorMeta.Color_space}, libx265...)
+			x265params = append(x265params, fmt.Sprintf("colormatrix=%s", colorMeta.Color_space))
+		}
+		if colorMeta.Color_primaries != "" {
+			libx265 = append([]string{"-color_primaries:v", colorMeta.Color_primaries}, libx265...)
+			x265params = append(x265params, fmt.Sprintf("colorprim=%s", colorMeta.Color_primaries))
+		}
+		if colorMeta.Color_transfer != "" {
+			libx265 = append([]string{"-color_trc:v", colorMeta.Color_transfer}, libx265...)
+			x265params = append(x265params, fmt.Sprintf("transfer=%s", colorMeta.Color_transfer))
+		}
+		for _, sd := range colorMeta.Side_data_list {
+			switch strings.ToLower(sd.Side_data_type) {
+			case strings.ToLower(side_data_type_mastering):
+				cc, err := parseColorCoords265(sd)
+				if err != nil {
+					logger.Errorf("failed to parse color coordinates: %v", err)
+					continue
+				}
+				x265params = append(x265params, fmt.Sprintf("master-display=%s", cc.Coordinates))
+			case strings.ToLower(side_data_type_light_level):
+				x265params = append(x265params, fmt.Sprintf("content-light=%d,%d", sd.Max_content, sd.Max_average))
+			}
+		}
+		if len(x265params) > 2 {
+			libx265 = append(libx265, "-x265-params", strings.Join(x265params, ":"))
+		}
+		return append(libx265, "-pix_fmt", "yuv420p10le")
 	}
 }
