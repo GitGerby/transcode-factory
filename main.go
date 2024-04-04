@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -217,7 +218,7 @@ func mainLoop() {
 	for {
 		tj, err := pullNextTranscode()
 		if err == sql.ErrNoRows {
-			time.Sleep(10 * time.Second)
+			time.Sleep(2 * time.Second)
 			continue
 		} else if err != nil {
 			logger.Fatalf("failed to pull next work item: %q", err)
@@ -235,6 +236,10 @@ func mainLoop() {
 
 		logger.Infof("job id %d: determining source metadata", tj.Id)
 		if err := updateSourceMetadata(&tj); err != nil {
+			if errors.Is(err, context.Canceled) {
+				logger.Errorf("service shutting down: %v", err)
+				return
+			}
 			logger.Errorf("ffprobe failed: %v", err)
 			tj.State = Failed
 			if err := finishJob(&tj, nil); err != nil {
@@ -248,6 +253,10 @@ func mainLoop() {
 
 		args, err := transcodeMedia(&tj)
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				logger.Errorf("service shutting down: %v", err)
+				return
+			}
 			logger.Errorf("transcodeMedia() error: %q", err)
 			tj.State = Failed
 			if err := finishJob(&tj, nil); err != nil {
@@ -276,7 +285,7 @@ func cropManager() {
 	for {
 		tj, err := pullNextCrop()
 		if err == sql.ErrNoRows {
-			time.Sleep(10 * time.Second)
+			time.Sleep(2 * time.Second)
 			continue
 		} else if err != nil {
 			logger.Fatalf("failed to pull next autocrop item: %q", err)
@@ -287,7 +296,9 @@ func cropManager() {
 
 		cg.Go(func() error {
 			err := updateSourceMetadata(&tj)
-			if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return err
+			} else if err != nil {
 				logger.Errorf("job id %d: failed to determine source metadata: %q", tj.Id, err)
 			}
 
@@ -322,6 +333,9 @@ func copyManager() {
 			updateJobStatus(tj.Id, Transcoding)
 			args, err := ffmpegTranscode(*tj)
 			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return err
+				}
 				logger.Errorf("job id %d: failed to run ffmpeg copy with args: %v", tj.Id, args)
 				if err := finishJob(tj, nil); err != nil {
 					logger.Fatalf("failed to cleanup job: %q", err)
