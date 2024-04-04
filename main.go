@@ -319,6 +319,7 @@ func copyManager() {
 
 		tj := dequeueCopy()
 		cwg.Go(func() error {
+			updateJobStatus(tj.Id, Transcoding)
 			args, err := ffmpegTranscode(*tj)
 			if err != nil {
 				logger.Errorf("job id %d: failed to run ffmpeg copy with args: %v", tj.Id, args)
