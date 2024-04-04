@@ -270,7 +270,8 @@ func launchApi() {
 }
 
 func cropManager() {
-	ct := make(chan struct{}, 2)
+	cg := new(errgroup.Group)
+	cg.SetLimit(2)
 	logger.Infof("crop detect thread listening")
 	for {
 		tj, err := pullNextCrop()
@@ -284,14 +285,13 @@ func cropManager() {
 		logger.Infof("job id %d: building video filter graph", tj.Id)
 		updateJobStatus(tj.Id, BuildVideoFilter)
 
-		ct <- struct{}{}
-		go func(tj *TranscodeJob) {
-			err := updateSourceMetadata(tj)
+		cg.Go(func() error {
+			err := updateSourceMetadata(&tj)
 			if err != nil {
 				logger.Errorf("job id %d: failed to determine source metadata: %q", tj.Id, err)
 			}
 
-			err = compileVF(tj)
+			err = compileVF(&tj)
 			if err != nil {
 				logger.Errorf("job id %d: failed to compile vf: %q", tj.Id, err)
 			}
@@ -300,8 +300,8 @@ func cropManager() {
 			if err != nil {
 				logger.Errorf("job id %d: failed to deactivate job: %q", tj.Id, err)
 			}
-			<-ct
-		}(&tj)
+			return nil
+		})
 	}
 }
 
