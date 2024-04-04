@@ -149,7 +149,7 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 	if err == nil {
 		tj.SourceMeta = m
 		return nil
-	} else if err != nil && err != sql.ErrNoRows {
+	} else if err != sql.ErrNoRows {
 		return fmt.Errorf("querying source table failed: %q", err)
 	}
 
@@ -198,17 +198,10 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 // compileVF builds the appropriate video filter string based on the provided filter string
 // and the autocrop setting if set to true.
 func compileVF(tj *TranscodeJob) error {
-	var h bool
-	if strings.ToLower(tj.SourceMeta.Codec) == "vc1" {
-		h = true
-	} else {
-		h = false
-	}
-
 	var c string
 	if tj.JobDefinition.Autocrop {
 		var err error
-		c, err = detectCrop(tj.JobDefinition.Source, h)
+		c, err = detectCrop(tj.JobDefinition.Source)
 		if err != nil {
 			return err
 		}

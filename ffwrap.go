@@ -83,7 +83,7 @@ const (
 	side_data_type_light_level = "Content light level metadata"
 )
 
-func detectCrop(s string, hwaccel bool) (string, error) {
+func detectCrop(s string) (string, error) {
 	var args []string
 	args = append(args, "-hide_banner")
 	args = append(args, ffcommon...)
@@ -136,10 +136,6 @@ func probeMetadata(s string) (MediaMetadata, error) {
 
 func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	args := append(ffquiet, ffcommon...)
-
-	if strings.ToLower(tj.SourceMeta.Codec) == "vc1" {
-		args = append(args, "-hwaccel", "auto")
-	}
 
 	args = append(args, "-i", tj.JobDefinition.Source)
 
