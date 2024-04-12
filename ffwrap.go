@@ -177,8 +177,9 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to start ffmpeg: %q", err)
 	}
+
 	err = cmd.Wait()
-	if err != nil {
+	if err != nil || cmd.ProcessState.ExitCode() != 0 {
 		return nil, fmt.Errorf("execution failed: %q check log at %q", err, logdest)
 	}
 
