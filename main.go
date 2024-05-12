@@ -275,6 +275,9 @@ func mainLoop() {
 func launchApi() {
 	http.HandleFunc("/statusz", display_rows)
 	http.HandleFunc("/add", newtranscode)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/statusz", http.StatusFound)
+	})
 	go http.ListenAndServe(":51218", nil)
 }
 
