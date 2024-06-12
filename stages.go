@@ -56,7 +56,8 @@ func pullNextTranscode() (TranscodeJob, error) {
   SELECT id, source, destination, IFNULL(crf,18) as crf, srt_files, IFNULL(autocrop,1) as autocrop, video_filters, audio_filters, codec 
   FROM transcode_queue
   WHERE id NOT IN (SELECT id FROM completed_jobs)
-	AND ((autocrop = 1 AND crop_complete = 1) OR (autocrop = 0))
+	AND id NOT IN (SELECT id FROM active_job)
+	AND ((autocrop = 1 AND crop_complete = 1) OR (autocrop = 0) OR (LOWER(codec) = 'copy'))
   ORDER BY id ASC
   LIMIT 1;`
 
@@ -167,7 +168,7 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 		return fmt.Errorf("job id %d: failed to insert source_metadata: %q", tj.Id, err)
 	}
 
-	sq := "SELECT source FROM transcode_queue WHERE id = ?;"
+	sq := "SELECT source FROM transcode_queue WHERE id = ?"
 	rs := db.QueryRow(sq, tj.Id)
 	var s string
 	if err := rs.Scan(&s); err != nil {
@@ -256,13 +257,7 @@ func transcodeMedia(tj *TranscodeJob) ([]string, error) {
 	}
 
 	// run the transcoder
-	switch tj.JobDefinition.Codec {
-	case "copy":
-		enqueueCopy(tj)
-		return []string{"enqueued copy"}, nil
-	default:
-		return ffmpegTranscode(*tj)
-	}
+	return ffmpegTranscode(*tj)
 }
 
 func finishJob(tj *TranscodeJob, args []string) error {

@@ -30,7 +30,6 @@ type PageData struct {
 	CompletedJobs  []TranscodeJob
 }
 
-
 func display_rows(w http.ResponseWriter, req *http.Request) {
 	// setup required variables
 	var srtj []byte
@@ -80,13 +79,13 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 		job_state,
 		IFNULL(current_frame,0),
 		IFNULL(total_frames,0),
-		IFNULL(video_filters, "empty"),
+		IFNULL(video_filters, 'empty'),
 		srt_files,
-		crf,
-		IFNULL(source_metadata.codec, "unknown") as source_codec,
-		IFNULL(transcode_queue.codec, "hevc_nvenc") as destination_codec
+		IIF(transcode_queue.codec = 'copy', 0, crf),
+		IFNULL(source_metadata.codec, 'unknown') as source_codec,
+		IFNULL(transcode_queue.codec, 'libx265') as destination_codec
 	FROM transcode_queue
-		JOIN (active_job 
+		LEFT JOIN (active_job 
 			LEFT JOIN source_metadata 
 				ON source_metadata.id = active_job.id)
 			ON transcode_queue.id = active_job.id`)

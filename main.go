@@ -251,7 +251,14 @@ func mainLoop() {
 		logger.Infof("job id %d: beginning transcode", tj.Id)
 		updateJobStatus(tj.Id, Transcoding)
 
-		args, err := transcodeMedia(&tj)
+		var args []string
+		switch tj.JobDefinition.Codec {
+		case "copy":
+			enqueueCopy(&tj)
+			continue
+		default:
+			args, err = transcodeMedia(&tj)
+		}
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				logger.Errorf("service shutting down: %v", err)
@@ -283,7 +290,7 @@ func launchApi() {
 
 func cropManager() {
 	cg := new(errgroup.Group)
-	cg.SetLimit(2)
+	cg.SetLimit(4)
 	logger.Infof("crop detect thread listening")
 	for {
 		tj, err := pullNextCrop()
@@ -327,13 +334,18 @@ func copyManager() {
 
 	for {
 		if len(queueCopy) == 0 {
-			time.Sleep(5 * time.Second)
+			time.Sleep(2 * time.Second)
 			continue
 		}
 
 		tj := dequeueCopy()
+
 		cwg.Go(func() error {
 			logger.Infof("starting copy for %#v", tj)
+			updateJobStatus(tj.Id, AwaitingTranscode)
+			if err := updateSourceMetadata(tj); err != nil {
+				logger.Errorf("failed to update source metadata for job %d: %v", tj.Id, err)
+			}
 			if err := updateJobStatus(tj.Id, Transcoding); err != nil {
 				logger.Errorf("failed to update job: %d with error: %v", tj.Id, err)
 			}
@@ -366,6 +378,7 @@ func dequeueCopy() *TranscodeJob {
 func enqueueCopy(tj *TranscodeJob) {
 	muCopy.Lock()
 	defer func() { muCopy.Unlock() }()
+	updateJobStatus(tj.Id, AwaitingTranscode)
 	queueCopy = append(queueCopy, tj)
 }
 
