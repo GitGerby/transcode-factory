@@ -12,17 +12,7 @@ require (
 )
 
 require (
-	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
-	github.com/go-ole/go-ole v1.2.5 // indirect
-	github.com/google/deck v0.0.0-20230104221208-105ad94aa8ae // indirect
-	github.com/hashicorp/errwrap v1.0.0 // indirect
-	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	golang.org/x/crypto v0.1.0 // indirect
-)
-
-require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/google/certtostore v1.0.3
 	github.com/google/uuid v1.5.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
