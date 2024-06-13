@@ -76,7 +76,7 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 		transcode_queue.id,
 		source,
 		destination,
-		job_state,
+		IFNULL(job_state,0),
 		IFNULL(current_frame,0),
 		IFNULL(total_frames,0),
 		IFNULL(video_filters, 'empty'),
@@ -85,7 +85,7 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 		IFNULL(source_metadata.codec, 'unknown') as source_codec,
 		IFNULL(transcode_queue.codec, 'libx265') as destination_codec
 	FROM transcode_queue
-		LEFT JOIN (active_job 
+		JOIN (active_job 
 			LEFT JOIN source_metadata 
 				ON source_metadata.id = active_job.id)
 			ON transcode_queue.id = active_job.id`)
