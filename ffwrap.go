@@ -371,6 +371,14 @@ func buildCodec(codec string, crf int, colorMeta colorInfo) []string {
 		"-preset", "medium",
 		"-profile:v", "main10",
 	}
+	
+	libx265_animation := []string{
+		"-c:v", "libx265",
+		"-crf", fmt.Sprintf("%d", crf),
+		"-preset", "medium",
+		"-profile:v", "main10",
+		"-tune", "animation",
+	}
 
 	libsvtav1 := []string{
 		"-c:v", "libsvtav1",
@@ -428,6 +436,40 @@ func buildCodec(codec string, crf int, colorMeta colorInfo) []string {
 
 	case "hevc_nvenc":
 		return hevc_nvec
+	case "libx265_animation":
+		x265params := []string{
+			"hdr-opt=1",
+			"repeat-headers=1",
+		}
+		if colorMeta.Color_space != "" {
+			libx265_animation = append([]string{"-colorspace", colorMeta.Color_space}, libx265...)
+			x265params = append(x265params, fmt.Sprintf("colormatrix=%s", colorMeta.Color_space))
+		}
+		if colorMeta.Color_primaries != "" {
+			libx265_animation = append([]string{"-color_primaries:v", colorMeta.Color_primaries}, libx265...)
+			x265params = append(x265params, fmt.Sprintf("colorprim=%s", colorMeta.Color_primaries))
+		}
+		if colorMeta.Color_transfer != "" {
+			libx265_animation = append([]string{"-color_trc:v", colorMeta.Color_transfer}, libx265...)
+			x265params = append(x265params, fmt.Sprintf("transfer=%s", colorMeta.Color_transfer))
+		}
+		for _, sd := range colorMeta.Side_data_list {
+			switch strings.ToLower(sd.Side_data_type) {
+			case strings.ToLower(side_data_type_mastering):
+				cc, err := parseColorCoords265(sd)
+				if err != nil {
+					logger.Errorf("failed to parse color coordinates: %v", err)
+					continue
+				}
+				x265params = append(x265params, fmt.Sprintf("master-display=%s", cc.Coordinates))
+			case strings.ToLower(side_data_type_light_level):
+				x265params = append(x265params, fmt.Sprintf("content-light=%d,%d", sd.Max_content, sd.Max_average))
+			}
+		}
+		if len(x265params) > 2 {
+			libx265_animation = append(libx265_animation, "-x265-params", strings.Join(x265params, ":"))
+		}
+		return append(libx265_animation, "-pix_fmt", "yuv420p10le")
 	default:
 		x265params := []string{
 			"hdr-opt=1",
