@@ -343,6 +343,10 @@ func copyManager() {
 		cwg.Go(func() error {
 			logger.Infof("starting copy for %#v", tj)
 			updateJobStatus(tj.Id, AwaitingTranscode)
+			if err := createDestinationParent(tj.JobDefinition.Destination); err != nil {
+				logger.Errorf("failed to create destination directory: %v", err)
+				return nil
+			}
 			if err := updateSourceMetadata(tj); err != nil {
 				logger.Errorf("failed to update source metadata for job %d: %v", tj.Id, err)
 			}

@@ -248,14 +248,20 @@ func compileVF(tj *TranscodeJob) error {
 	return tx.Commit()
 }
 
-func transcodeMedia(tj *TranscodeJob) ([]string, error) {
+func createDestinationParent(path string) error {
 	// make sure the dest directory exists or create it
-	logger.Infof("making path: %q", filepath.Dir(tj.JobDefinition.Destination))
-	err := os.MkdirAll(filepath.Dir(tj.JobDefinition.Destination), 0664)
+	logger.Infof("making path: %q", filepath.Dir(path))
+	err := os.MkdirAll(filepath.Dir(path), 0664)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create destination directory: %q", err)
+		return fmt.Errorf("failed to create destination directory: %q", err)
 	}
+	return nil
+}
 
+func transcodeMedia(tj *TranscodeJob) ([]string, error) {
+	if err := createDestinationParent(tj.JobDefinition.Destination); err != nil {
+		return nil, err
+	}
 	// run the transcoder
 	return ffmpegTranscode(*tj)
 }
