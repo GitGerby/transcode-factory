@@ -434,32 +434,16 @@ func buildCodec(codec string, crf int, colorMeta colorInfo) []string {
 			"hdr-opt=1",
 			"repeat-headers=1",
 		}
-		if colorMeta.Color_space != "" {
-			libx265 = append([]string{"-colorspace", colorMeta.Color_space}, libx265...)
-			x265params = append(x265params, fmt.Sprintf("colormatrix=%s", colorMeta.Color_space))
+		hdrcolor, x265color, err := libx265HDR(colorMeta)
+		if err != nil {
+			logger.Errorf("failed to generate color args, continuing without: %v", err)
 		}
-		if colorMeta.Color_primaries != "" {
-			libx265 = append([]string{"-color_primaries:v", colorMeta.Color_primaries}, libx265...)
-			x265params = append(x265params, fmt.Sprintf("colorprim=%s", colorMeta.Color_primaries))
+
+		if len(hdrcolor) > 0 {
+			libx265 = append(libx265, hdrcolor...)
 		}
-		if colorMeta.Color_transfer != "" {
-			libx265 = append([]string{"-color_trc:v", colorMeta.Color_transfer}, libx265...)
-			x265params = append(x265params, fmt.Sprintf("transfer=%s", colorMeta.Color_transfer))
-		}
-		for _, sd := range colorMeta.Side_data_list {
-			switch strings.ToLower(sd.Side_data_type) {
-			case strings.ToLower(side_data_type_mastering):
-				cc, err := parseColorCoords265(sd)
-				if err != nil {
-					logger.Errorf("failed to parse color coordinates: %v", err)
-					continue
-				}
-				x265params = append(x265params, fmt.Sprintf("master-display=%s", cc.Coordinates))
-			case strings.ToLower(side_data_type_light_level):
-				x265params = append(x265params, fmt.Sprintf("content-light=%d,%d", sd.Max_content, sd.Max_average))
-			}
-		}
-		if len(x265params) > 2 {
+		if len(x265color) > 0 {
+			x265params = append(x265params, x265color...)
 			libx265 = append(libx265, "-x265-params", strings.Join(x265params, ":"))
 		}
 		return append(libx265, "-pix_fmt", "yuv420p10le")
@@ -468,34 +452,47 @@ func buildCodec(codec string, crf int, colorMeta colorInfo) []string {
 			"hdr-opt=1",
 			"repeat-headers=1",
 		}
-		if colorMeta.Color_space != "" {
-			libx265 = append([]string{"-colorspace", colorMeta.Color_space}, libx265...)
-			x265params = append(x265params, fmt.Sprintf("colormatrix=%s", colorMeta.Color_space))
+		hdrcolor, x265color, err := libx265HDR(colorMeta)
+		if err != nil {
+			logger.Errorf("failed to generate color args, continuing without: %v", err)
 		}
-		if colorMeta.Color_primaries != "" {
-			libx265 = append([]string{"-color_primaries:v", colorMeta.Color_primaries}, libx265...)
-			x265params = append(x265params, fmt.Sprintf("colorprim=%s", colorMeta.Color_primaries))
+
+		if len(hdrcolor) > 0 {
+			libx265 = append(libx265, hdrcolor...)
 		}
-		if colorMeta.Color_transfer != "" {
-			libx265 = append([]string{"-color_trc:v", colorMeta.Color_transfer}, libx265...)
-			x265params = append(x265params, fmt.Sprintf("transfer=%s", colorMeta.Color_transfer))
-		}
-		for _, sd := range colorMeta.Side_data_list {
-			switch strings.ToLower(sd.Side_data_type) {
-			case strings.ToLower(side_data_type_mastering):
-				cc, err := parseColorCoords265(sd)
-				if err != nil {
-					logger.Errorf("failed to parse color coordinates: %v", err)
-					continue
-				}
-				x265params = append(x265params, fmt.Sprintf("master-display=%s", cc.Coordinates))
-			case strings.ToLower(side_data_type_light_level):
-				x265params = append(x265params, fmt.Sprintf("content-light=%d,%d", sd.Max_content, sd.Max_average))
-			}
-		}
-		if len(x265params) > 2 {
+		if len(x265color) > 0 {
+			x265params = append(x265params, x265color...)
 			libx265 = append(libx265, "-x265-params", strings.Join(x265params, ":"))
 		}
 		return append(libx265, "-pix_fmt", "yuv420p10le")
 	}
+}
+
+func libx265HDR(colorMeta colorInfo) (libx265, x265params []string, err error) {
+	if colorMeta.Color_space != "" {
+		libx265 = append([]string{"-colorspace", colorMeta.Color_space}, libx265...)
+		x265params = append(x265params, fmt.Sprintf("colormatrix=%s", colorMeta.Color_space))
+	}
+	if colorMeta.Color_primaries != "" {
+		libx265 = append([]string{"-color_primaries:v", colorMeta.Color_primaries}, libx265...)
+		x265params = append(x265params, fmt.Sprintf("colorprim=%s", colorMeta.Color_primaries))
+	}
+	if colorMeta.Color_transfer != "" {
+		libx265 = append([]string{"-color_trc:v", colorMeta.Color_transfer}, libx265...)
+		x265params = append(x265params, fmt.Sprintf("transfer=%s", colorMeta.Color_transfer))
+	}
+	for _, sd := range colorMeta.Side_data_list {
+		switch strings.ToLower(sd.Side_data_type) {
+		case strings.ToLower(side_data_type_mastering):
+			cc, err := parseColorCoords265(sd)
+			if err != nil {
+				logger.Errorf("failed to parse color coordinates: %v", err)
+				continue
+			}
+			x265params = append(x265params, fmt.Sprintf("master-display=%s", cc.Coordinates))
+		case strings.ToLower(side_data_type_light_level):
+			x265params = append(x265params, fmt.Sprintf("content-light=%d,%d", sd.Max_content, sd.Max_average))
+		}
+	}
+	return libx265, x265params, nil
 }
