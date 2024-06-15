@@ -371,14 +371,6 @@ func buildCodec(codec string, crf int, colorMeta colorInfo) []string {
 		"-preset", "medium",
 		"-profile:v", "main10",
 	}
-	
-	libx265_animation := []string{
-		"-c:v", "libx265",
-		"-crf", fmt.Sprintf("%d", crf),
-		"-preset", "medium",
-		"-profile:v", "main10",
-		"-tune", "animation",
-	}
 
 	libsvtav1 := []string{
 		"-c:v", "libsvtav1",
@@ -437,20 +429,21 @@ func buildCodec(codec string, crf int, colorMeta colorInfo) []string {
 	case "hevc_nvenc":
 		return hevc_nvec
 	case "libx265_animation":
+		libx265 = append(libx265, "-tune", "animation")
 		x265params := []string{
 			"hdr-opt=1",
 			"repeat-headers=1",
 		}
 		if colorMeta.Color_space != "" {
-			libx265_animation = append([]string{"-colorspace", colorMeta.Color_space}, libx265...)
+			libx265 = append([]string{"-colorspace", colorMeta.Color_space}, libx265...)
 			x265params = append(x265params, fmt.Sprintf("colormatrix=%s", colorMeta.Color_space))
 		}
 		if colorMeta.Color_primaries != "" {
-			libx265_animation = append([]string{"-color_primaries:v", colorMeta.Color_primaries}, libx265...)
+			libx265 = append([]string{"-color_primaries:v", colorMeta.Color_primaries}, libx265...)
 			x265params = append(x265params, fmt.Sprintf("colorprim=%s", colorMeta.Color_primaries))
 		}
 		if colorMeta.Color_transfer != "" {
-			libx265_animation = append([]string{"-color_trc:v", colorMeta.Color_transfer}, libx265...)
+			libx265 = append([]string{"-color_trc:v", colorMeta.Color_transfer}, libx265...)
 			x265params = append(x265params, fmt.Sprintf("transfer=%s", colorMeta.Color_transfer))
 		}
 		for _, sd := range colorMeta.Side_data_list {
@@ -467,9 +460,9 @@ func buildCodec(codec string, crf int, colorMeta colorInfo) []string {
 			}
 		}
 		if len(x265params) > 2 {
-			libx265_animation = append(libx265_animation, "-x265-params", strings.Join(x265params, ":"))
+			libx265 = append(libx265, "-x265-params", strings.Join(x265params, ":"))
 		}
-		return append(libx265_animation, "-pix_fmt", "yuv420p10le")
+		return append(libx265, "-pix_fmt", "yuv420p10le")
 	default:
 		x265params := []string{
 			"hdr-opt=1",
