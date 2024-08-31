@@ -31,6 +31,7 @@ import (
 	"github.com/google/logger"
 	"github.com/kardianos/service"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sys/windows"
 	_ "modernc.org/sqlite"
 )
 
@@ -96,6 +97,12 @@ func (p *program) Start(s service.Service) error {
 
 func (p *program) Run() {
 	var err error
+	// Lower process priority to reduce impact on interactive uses of the host
+	err = lowerPriority()
+	if err != nil {
+		logger.Errorf("lowerPriority() returned: %v", err)
+	}
+
 	// Create context and setup for service stop
 	ctx, stop_ctx = context.WithCancel(context.Background())
 
@@ -384,6 +391,19 @@ func enqueueCopy(tj *TranscodeJob) {
 	defer func() { muCopy.Unlock() }()
 	updateJobStatus(tj.Id, AwaitingTranscode)
 	queueCopy = append(queueCopy, tj)
+}
+
+// lowerPriority sets the process to the lowest scheduler priority
+func lowerPriority() error {
+	ph, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_SET_INFORMATION, false, uint32(os.Getpid()))
+	if err != nil {
+		return fmt.Errorf("windows.OpenProcess for pid: %v returned: %v", uint32(os.Getpid()), err)
+	}
+	err = windows.SetPriorityClass(ph, windows.IDLE_PRIORITY_CLASS)
+	if err != nil {
+		return fmt.Errorf("windows.SetPriorityClass for pid: %v returned: %v", uint32(os.Getpid()), err)
+	}
+	return nil
 }
 
 func main() {
