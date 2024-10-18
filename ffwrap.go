@@ -181,9 +181,7 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	err = cmd.Wait()
 	if errors.Is(err, context.Canceled) {
 		return nil, err
-	}
-
-	if err != nil || cmd.ProcessState.ExitCode() != 0 {
+	}	else if err != nil || cmd.ProcessState.ExitCode() != 0 {
 		return nil, fmt.Errorf("execution failed: %q check log at %q", err, logdest)
 	}
 
