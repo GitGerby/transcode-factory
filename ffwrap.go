@@ -85,12 +85,12 @@ const (
 	side_data_type_light_level = "Content light level metadata"
 )
 
-func detectCrop(s string) (string, error) {
+func detectCrop(inputFile string) (string, error) {
 	var args []string
 	args = append(args, "-hide_banner")
 	args = append(args, ffcommon...)
 
-	args = append(args, "-i", s, "-vf", "cropdetect=round=2", "-t", "300", "-f", "null", "NUL")
+	args = append(args, "-i", inputFile, "-vf", "cropdetect=round=2", "-t", "300", "-f", "null", "NUL")
 
 	var sout, serr bytes.Buffer
 	logger.Infof("cropdetect with args %#v", args)
