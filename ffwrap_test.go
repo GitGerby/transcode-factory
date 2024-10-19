@@ -4,113 +4,139 @@ import (
 	"testing"
 )
 
+var (
+	validMasteringColorInfo = colorSideInfo{
+		Side_data_type: side_data_type_mastering,
+		Red_x:          "30/100",
+		Red_y:          "30/100",
+		Green_x:        "40/100",
+		Green_y:        "40/100",
+		Blue_x:         "20/100",
+		Blue_y:         "20/100",
+		White_point_x:  "90/100",
+		White_point_y:  "100/100",
+		Max_luminance:  "100/100",
+		Min_luminance:  "0/100",
+	}
+	missingMasteringColorInfo = colorSideInfo{
+		Side_data_type: side_data_type_mastering,
+		Red_x:          "30/100",
+		Red_y:          "30/100",
+		Green_x:        "40/100",
+		White_point_x:  "90/100",
+		White_point_y:  "100/100",
+	}
+	nanMasteringColorInfo = colorSideInfo{
+		Side_data_type: side_data_type_mastering,
+		Red_x:          "30/100",
+		Red_y:          "30/100",
+		Green_x:        "40/100",
+		Green_y:        "40/100",
+		Blue_x:         "20/100",
+		Blue_y:         "20/100",
+		White_point_x:  "90/100",
+		White_point_y:  "100/100",
+		Max_luminance:  "a/100",
+		Min_luminance:  "0/100",
+	}
+	validLightColorInfo = colorSideInfo{
+		Side_data_type: side_data_type_light_level,
+		Max_content:    700,
+		Max_average:    200,
+	}
+	missingLightColorInfo = colorSideInfo{
+		Side_data_type: side_data_type_light_level,
+		Max_content:    700,
+	}
+)
+
 func TestParseColorCoordsAv1(t *testing.T) {
-	// Test case 1: Valid color side information
-	csi := colorSideInfo{
-		Red_x:         "30/100",
-		Red_y:         "30/100",
-		Green_x:       "40/100",
-		Green_y:       "40/100",
-		Blue_x:        "20/100",
-		Blue_y:        "20/100",
-		White_point_x: "90/100",
-		White_point_y: "100/100",
-		Max_luminance: "100/100",
-		Min_luminance: "0/100",
-	}
-	expected := "G(0.400000,0.400000)B(0.200000,0.200000)R(0.300000,0.300000)WP(0.900000,1.000000)L(1.000000,0.000000)"
-	result, err := parseColorCoordsAv1(csi)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if result.Coordinates != expected {
-		t.Errorf("Incorrect color coordinates: expected %s, got %s", expected, result.Coordinates)
-	}
-
-	// Test case 2: Invalid color side information (missing values)
-	csi = colorSideInfo{
-		Red_x:         "30/100",
-		Red_y:         "30/100",
-		Green_x:       "40/100",
-		White_point_x: "90/100",
-		White_point_y: "100/100",
-	}
-	_, err = parseColorCoordsAv1(csi)
-	if err == nil {
-		t.Errorf("Expected error due to missing values")
+	testCases := []struct {
+		desc        string
+		csi         colorSideInfo
+		expected    string
+		shouldError bool
+	}{
+		{
+			desc:        "Valid color side information",
+			csi:         validMasteringColorInfo,
+			expected:    "G(0.400000,0.400000)B(0.200000,0.200000)R(0.300000,0.300000)WP(0.900000,1.000000)L(1.000000,0.000000)",
+			shouldError: false,
+		},
+		{
+			desc:        "Missing color side information",
+			csi:         missingMasteringColorInfo,
+			expected:    "",
+			shouldError: true,
+		},
+		{
+			desc:        "Not a number color side information",
+			csi:         nanMasteringColorInfo,
+			expected:    "",
+			shouldError: true,
+		},
 	}
 
-	// Test case 3: Invalid color side information (not a number)
-	csi = colorSideInfo{
-		Red_x:         "30/100",
-		Red_y:         "30/100",
-		Green_x:       "40/100",
-		Green_y:       "40/100",
-		Blue_x:        "20/100",
-		Blue_y:        "20/100",
-		White_point_x: "90/100",
-		White_point_y: "100/100",
-		Max_luminance: "a/100",
-		Min_luminance: "0/100",
-	}
-	_, err = parseColorCoordsAv1(csi)
-	if err == nil {
-		t.Errorf("Expected error due to not a number")
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
+			result, err := parseColorCoordsAv1(tc.csi)
+			if err == nil && tc.shouldError {
+				t.Errorf("%q: Expected error but got nil", tc.desc)
+			}
+			if err != nil && !tc.shouldError {
+				t.Errorf("%q: got error: %v want: nil", tc.desc, err)
+			}
+			if result.Coordinates != tc.expected {
+				t.Errorf("%q: unexpected result %v want: %v", tc.desc, result.Coordinates, tc.expected)
+			}
+
+		})
 	}
 }
 
 func TestParseColorCoords265(t *testing.T) {
-	// Test case 1: Valid color side information
-	csi := colorSideInfo{
-		Red_x:         "30/100",
-		Red_y:         "30/100",
-		Green_x:       "40/100",
-		Green_y:       "40/100",
-		Blue_x:        "20/100",
-		Blue_y:        "20/100",
-		White_point_x: "90/100",
-		White_point_y: "100/100",
-		Max_luminance: "100/100",
-		Min_luminance: "0/100",
-	}
-	expected := "G(20000,20000)B(10000,10000)R(15000,15000)WP(45000,50000)L(10000,0)"
-	result, err := parseColorCoords265(csi)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if result.Coordinates != expected {
-		t.Errorf("Incorrect color coordinates: expected %s, got %s", expected, result.Coordinates)
-	}
-
-	// Test case 2: Invalid color side information (missing values)
-	csi = colorSideInfo{
-		Red_x:         "30/100",
-		Red_y:         "30/100",
-		Green_x:       "40/100",
-		White_point_x: "90/100",
-		White_point_y: "100/100",
-	}
-	_, err = parseColorCoordsAv1(csi)
-	if err == nil {
-		t.Errorf("Expected error due to missing values")
+	testCases := []struct {
+		desc        string
+		csi         colorSideInfo
+		expected    string
+		shouldError bool
+	}{
+		{
+			desc:        "Valid color side information",
+			csi:         validMasteringColorInfo,
+			expected:    "G(20000,20000)B(10000,10000)R(15000,15000)WP(45000,50000)L(10000,0)",
+			shouldError: false,
+		},
+		{
+			desc:        "Missing color side information",
+			csi:         missingMasteringColorInfo,
+			expected:    "",
+			shouldError: true,
+		},
+		{
+			desc:        "Not a number color side information",
+			csi:         nanMasteringColorInfo,
+			expected:    "",
+			shouldError: true,
+		},
 	}
 
-	// Test case 3: Invalid color side information (not a number)
-	csi = colorSideInfo{
-		Red_x:         "30/100",
-		Red_y:         "30/100",
-		Green_x:       "40/100",
-		Green_y:       "40/100",
-		Blue_x:        "20/100",
-		Blue_y:        "20/100",
-		White_point_x: "90/100",
-		White_point_y: "100/100",
-		Max_luminance: "a/100",
-		Min_luminance: "0/100",
-	}
-	_, err = parseColorCoordsAv1(csi)
-	if err == nil {
-		t.Errorf("Expected error due to not a number")
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
+			result, err := parseColorCoords265(tc.csi)
+			if err == nil && tc.shouldError {
+				t.Errorf("%q: Expected error but got nil", tc.desc)
+			}
+			if err != nil && !tc.shouldError {
+				t.Errorf("%q: got error: %v want: nil", tc.desc, err)
+			}
+			if result.Coordinates != tc.expected {
+				t.Errorf("%q: unexpected result %v want: %v", tc.desc, result.Coordinates, tc.expected)
+			}
+
+		})
 	}
 }
 
@@ -124,30 +150,14 @@ func TestLibx265HDR(t *testing.T) {
 		shouldError   bool
 	}{
 		{
-			desc: "Test case 1: Valid color meta data",
+			desc: "Test case 1: Valid color metadata",
 			colorMeta: colorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []colorSideInfo{
-					{
-						Side_data_type: side_data_type_mastering,
-						Red_x:          "1/3",
-						Red_y:          "2/3",
-						Green_x:        "1/4",
-						Green_y:        "3/4",
-						Blue_x:         "1/5",
-						Blue_y:         "4/5",
-						White_point_x:  "1/2",
-						White_point_y:  "2/3",
-						Max_luminance:  "1000/1",
-						Min_luminance:  "10/1",
-					},
-					{
-						Side_data_type: side_data_type_light_level,
-						Max_content:    1000000,
-						Max_average:    50000,
-					},
+					validLightColorInfo,
+					validMasteringColorInfo,
 				},
 			},
 			expectedLib: []string{
@@ -159,41 +169,40 @@ func TestLibx265HDR(t *testing.T) {
 				"colormatrix=bt709",
 				"colorprim=bt709",
 				"transfer=srgb",
-				"master-display=G(12500,37500)B(10000,40000)R(16666,33332)WP(25000,33332)L(10000000,100000)",
-				"content-light=1000000,50000",
+				"content-light=700,200",
+				"master-display=G(20000,20000)B(10000,10000)R(15000,15000)WP(45000,50000)L(10000,0)",
 			},
 			shouldError: false,
 		},
 		{
-			desc: "Test case 2: invalid color meta data",
+			desc: "Test case 2: invalid color metadata",
 			colorMeta: colorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []colorSideInfo{
-					{
-						Side_data_type: side_data_type_mastering,
-						Red_x:          "1/a",
-						Red_y:          "2/3",
-						Green_x:        "1/4",
-						Green_y:        "3/4",
-						Blue_x:         "1/5",
-						Blue_y:         "4/5",
-						White_point_x:  "1/2",
-						White_point_y:  "2/3",
-						Max_luminance:  "1000/1",
-						Min_luminance:  "10/1",
-					},
-					{
-						Side_data_type: side_data_type_light_level,
-						Max_content:    1000000,
-						Max_average:    50000,
-					},
+					nanMasteringColorInfo,
+					validLightColorInfo,
 				},
 			},
 			expectedLib:   nil,
 			expectedParam: nil,
 			shouldError:   true,
+		},
+		{
+			desc: "Test case 3: missing light metadata",
+			colorMeta: colorInfo{
+				Color_space:     "bt709",
+				Color_primaries: "bt709",
+				Color_transfer:  "srgb",
+				Side_data_list: []colorSideInfo{
+					validMasteringColorInfo,
+					missingLightColorInfo,
+				},
+			},
+			expectedLib:   []string{"-color_trc:v", "srgb", "-color_primaries:v", "bt709", "-colorspace", "bt709"},
+			expectedParam: []string{"colormatrix=bt709", "colorprim=bt709", "transfer=srgb", "master-display=G(20000,20000)B(10000,10000)R(15000,15000)WP(45000,50000)L(10000,0)", "content-light=700,0"},
+			shouldError:   false,
 		},
 	}
 
