@@ -386,7 +386,6 @@ func buildCodec(codec string, crf int, colorMeta colorInfo) []string {
 		"-c:v", "libsvtav1",
 		"-crf", fmt.Sprintf("%d", crf),
 		"-preset", "6",
-		"-svtav1-params", "tune=0:enable-overlays=1:input-depth=10",
 	}
 
 	hevc_nvec := []string{
@@ -406,34 +405,32 @@ func buildCodec(codec string, crf int, colorMeta colorInfo) []string {
 	case "copy":
 		return []string{"-c:v", "copy"}
 	case "libsvtav1":
+		svtav1Params := []string{"tune=0:enable-overlays=1:input-depth=10"}
 		if colorMeta.Color_space != "" {
-			libsvtav1 = append([]string{"-colorspace", colorMeta.Color_space}, libsvtav1...)
+			libsvtav1 = append(libsvtav1, "-colorspace", colorMeta.Color_space)
 		}
 		if colorMeta.Color_primaries != "" {
-			libsvtav1 = append([]string{"-color_primaries:v", colorMeta.Color_primaries}, libsvtav1...)
+			libsvtav1 = append(libsvtav1, "-color_primaries:v", colorMeta.Color_primaries)
 		}
 		if colorMeta.Color_transfer != "" {
-			libsvtav1 = append([]string{"-color_trc:v", colorMeta.Color_transfer}, libsvtav1...)
+			libsvtav1 = append(libsvtav1, "-color_trc:v", colorMeta.Color_transfer)
 		}
-		sargs := libsvtav1[len(libsvtav1)-1]
 		for _, sd := range colorMeta.Side_data_list {
 			switch strings.ToLower(sd.Side_data_type) {
 			case strings.ToLower(side_data_type_mastering):
-				sargs += ":enable-hdr=1"
 				cc, err := parseColorCoordsAv1(sd)
 				if err != nil {
 					logger.Errorf("failed to parse color coordinates: %v", err)
 					continue
 				}
-				md := fmt.Sprintf(":mastering-display=%s", cc.Coordinates)
-				sargs += md
+				svtav1Params = append(svtav1Params, "enable-hdr=1")
+				svtav1Params = append(svtav1Params, fmt.Sprintf("mastering-display=%s", cc.Coordinates))
 			case strings.ToLower(side_data_type_light_level):
-				cll := fmt.Sprintf(":content-light=%d,%d", sd.Max_content, sd.Max_average)
-				sargs += cll
+				svtav1Params = append(svtav1Params, fmt.Sprintf("content-light=%d,%d", sd.Max_content, sd.Max_average))
 			}
-			sargs += ":chroma-sample-position=topleft"
+			svtav1Params = append(svtav1Params, "chroma-sample-position=topleft")
 		}
-		libsvtav1[len(libsvtav1)-1] = sargs
+		libsvtav1 = append(libsvtav1, "-svtav1-params", strings.Join(svtav1Params, ":"))
 		return append(libsvtav1, "-pix_fmt", "yuv420p10le")
 
 	case "hevc_nvenc":
