@@ -86,8 +86,7 @@ const (
 )
 
 func detectCrop(inputFile string) (string, error) {
-	var args []string
-	args = append(args, "-hide_banner")
+	args := []string{"-hide_banner"}
 	args = append(args, ffcommon...)
 
 	args = append(args, "-i", inputFile, "-vf", "cropdetect=round=2", "-t", "300", "-f", "null", "NUL")
