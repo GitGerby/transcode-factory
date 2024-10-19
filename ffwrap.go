@@ -190,7 +190,7 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	return args, nil
 }
 
-func parseColorInfo(input string) (colorInfo, error) {
+func parseColorInfo(inputFile string) (colorInfo, error) {
 	args := []string{
 		"-hide_banner",
 		"-loglevel", "warning",
@@ -201,7 +201,7 @@ func parseColorInfo(input string) (colorInfo, error) {
 		"-show_frames",
 		"-read_intervals", "%+#1",
 		"-show_entries", "frame=color_space,color_primaries,color_transfer,side_data_list,pix_fmt",
-		"-i", input,
+		"-i", inputFile,
 	}
 	logger.Infof("parsing color info, calling ffprobe with args: %#v", args)
 	cmd := exec.CommandContext(ctx, ffprobebinary, args...)
@@ -256,6 +256,9 @@ func evalColorCoordinate265(colorFrac string) (int, error) {
 
 func evalLumCoordinate265(colorFrac string) (int, error) {
 	splits := strings.Split(colorFrac, "/")
+	if len(splits) != 2 {
+		return 0, fmt.Errorf("invalid luminance fraction: %s", colorFrac)
+	}
 	n, err := strconv.Atoi(splits[0])
 	if err != nil {
 		return 0, err

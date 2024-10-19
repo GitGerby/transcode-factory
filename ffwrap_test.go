@@ -32,7 +32,7 @@ var (
 		Red_y:          "30/100",
 		Green_x:        "40/100",
 		Green_y:        "40/100",
-		Blue_x:         "20/100",
+		Blue_x:         "a/100",
 		Blue_y:         "20/100",
 		White_point_x:  "90/100",
 		White_point_y:  "100/100",
