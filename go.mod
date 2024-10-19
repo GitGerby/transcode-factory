@@ -1,6 +1,6 @@
 module github.com/gitgerby/transcode-factory
 
-go 1.23
+go 1.22
 
 require (
 	github.com/google/logger v1.1.1

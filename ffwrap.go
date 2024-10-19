@@ -15,7 +15,9 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -181,7 +183,7 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	err = cmd.Wait()
 	if errors.Is(err, context.Canceled) {
 		return nil, err
-	}	else if err != nil || cmd.ProcessState.ExitCode() != 0 {
+	} else if err != nil || cmd.ProcessState.ExitCode() != 0 {
 		return nil, fmt.Errorf("execution failed: %q check log at %q", err, logdest)
 	}
 
@@ -218,6 +220,9 @@ func parseColorInfo(input string) (colorInfo, error) {
 
 func evalColorCoordinateAv1(colorFrac string) (float64, error) {
 	splits := strings.Split(colorFrac, "/")
+	if len(splits) != 2 {
+		return 0, fmt.Errorf("invalid color fraction: %s", colorFrac)
+	}
 	n, err := strconv.ParseFloat(splits[0], 64)
 	if err != nil {
 		return 0, err
@@ -233,6 +238,9 @@ func evalColorCoordinateAv1(colorFrac string) (float64, error) {
 
 func evalColorCoordinate265(colorFrac string) (int, error) {
 	splits := strings.Split(colorFrac, "/")
+	if len(splits) != 2 {
+		return 0, fmt.Errorf("invalid color fraction: %s", colorFrac)
+	}
 	n, err := strconv.Atoi(splits[0])
 	if err != nil {
 		return 0, err
@@ -488,8 +496,7 @@ func libx265HDR(colorMeta colorInfo) (libx265, x265params []string, err error) {
 		case strings.ToLower(side_data_type_mastering):
 			cc, err := parseColorCoords265(sd)
 			if err != nil {
-				logger.Errorf("failed to parse color coordinates: %v", err)
-				continue
+				return nil, nil, fmt.Errorf("failed to parse color coordinates: %v", err)
 			}
 			x265params = append(x265params, fmt.Sprintf("master-display=%s", cc.Coordinates))
 		case strings.ToLower(side_data_type_light_level):
