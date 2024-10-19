@@ -344,7 +344,7 @@ func TestBuildCodec(t *testing.T) {
 				"-colorspace", "bt709",
 				"-color_primaries:v", "bt709",
 				"-color_trc:v", "srgb",
-				"-svtav1-params", "tune=0:enable-overlays=1:input-depth=10:mastering-display=G(0.400000,0.400000)B(0.200000,0.200000)R(0.300000,0.300000)WP(0.900000,1.000000)L(1.000000,0.000000):enable-hdr=1:chroma-sample-position=topleft:content-light=700,200:chroma-sample-position=topleft",
+				"-svtav1-params", "tune=0:enable-overlays=1:input-depth=10:enable-hdr=1:mastering-display=G(0.400000,0.400000)B(0.200000,0.200000)R(0.300000,0.300000)WP(0.900000,1.000000)L(1.000000,0.000000):chroma-sample-position=topleft:content-light=700,200:chroma-sample-position=topleft",
 				"-pix_fmt", "yuv420p10le",
 			},
 		},
