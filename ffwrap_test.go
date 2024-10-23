@@ -252,7 +252,7 @@ func TestBuildCodec(t *testing.T) {
 	// Define the test cases
 	testCases := []buildCodecTestCase{
 		{
-			desc:  "libx265 -- good",
+			desc:  "libx265 -- good HDR",
 			codec: "libx265",
 			crf:   23,
 			colorMeta: colorInfo{
@@ -278,7 +278,29 @@ func TestBuildCodec(t *testing.T) {
 			},
 		},
 		{
-			desc:  "libx265 -- bad",
+			desc:  "libx265 -- good sdr",
+			codec: "libx265",
+			crf:   23,
+			colorMeta: colorInfo{
+				Color_space:     "bt709",
+				Color_primaries: "bt709",
+				Color_transfer:  "srgb",
+				Side_data_list: []colorSideInfo{},
+			},
+			expected: []string{
+				"-c:v", "libx265",
+				"-crf", "23",
+				"-preset", "medium",
+				"-profile:v", "main10",
+				"-color_trc:v", "srgb",
+				"-color_primaries:v", "bt709",
+				"-colorspace", "bt709",
+				"-x265-params", "hdr-opt=1:repeat-headers=1:colormatrix=bt709:colorprim=bt709:transfer=srgb",
+				"-pix_fmt", "yuv420p10le",
+			},
+		},
+		{
+			desc:  "libx265 -- NANMasteringColor HDR",
 			codec: "libx265",
 			crf:   23,
 			colorMeta: colorInfo{
@@ -325,7 +347,7 @@ func TestBuildCodec(t *testing.T) {
 			},
 		},
 		{
-			desc:  "libsvtav1 -- good",
+			desc:  "libsvtav1 -- good HDR",
 			codec: "libsvtav1",
 			crf:   23,
 			colorMeta: colorInfo{
@@ -349,7 +371,7 @@ func TestBuildCodec(t *testing.T) {
 			},
 		},
 		{
-			desc:  "libsvtav1 -- bad",
+			desc:  "libsvtav1 -- NANMasteringColor HDR",
 			codec: "libsvtav1",
 			crf:   23,
 			colorMeta: colorInfo{
@@ -369,6 +391,27 @@ func TestBuildCodec(t *testing.T) {
 				"-color_primaries:v", "bt709",
 				"-color_trc:v", "srgb",
 				"-svtav1-params", "tune=0:enable-overlays=1:input-depth=10:content-light=700,200:chroma-sample-position=topleft",
+				"-pix_fmt", "yuv420p10le",
+			},
+		},
+		{
+			desc:  "libsvtav1 -- Good SDR",
+			codec: "libsvtav1",
+			crf:   23,
+			colorMeta: colorInfo{
+				Color_space:     "bt709",
+				Color_primaries: "bt709",
+				Color_transfer:  "srgb",
+				Side_data_list: []colorSideInfo{},
+			},
+			expected: []string{
+				"-c:v", "libsvtav1",
+				"-crf", "23",
+				"-preset", "6",
+				"-colorspace", "bt709",
+				"-color_primaries:v", "bt709",
+				"-color_trc:v", "srgb",
+				"-svtav1-params", "tune=0:enable-overlays=1:input-depth=10",
 				"-pix_fmt", "yuv420p10le",
 			},
 		},
