@@ -76,7 +76,7 @@ type FfprobeStreams struct {
 var (
 	// cdregex extracts the correct crop filter from an ffmpeg cropdetect run
 	cdregex  = regexp.MustCompile(`t:([\d]*).*?(crop=[-\d:]*)`)
-	ffquiet  = []string{"-y", "-hide_banner", "-stats"}
+	ffquiet  = []string{"-y", "-hide_banner", "-stats", "-loglevel", "error"}
 	ffcommon = []string{"-probesize", "6000M", "-analyzeduration", "6000M"}
 )
 
