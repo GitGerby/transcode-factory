@@ -207,7 +207,7 @@ func processLogRows(rows *sql.Rows) (map[int]string, error) {
 }
 
 func tailLog(filePath string) (string, error) {
-	file, err := os.Open(filePath)
+	file, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
 	if err != nil {
 		return "", err
 	}
