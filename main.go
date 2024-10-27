@@ -30,7 +30,9 @@ import (
 
 	"github.com/google/logger"
 	"github.com/kardianos/service"
+
 	"golang.org/x/sync/errgroup"
+
 	_ "modernc.org/sqlite"
 )
 
@@ -87,6 +89,7 @@ var (
 	transcode_log_path string
 	muCopy             sync.Mutex
 	queueCopy          []*TranscodeJob
+	wsHub              *Hub
 )
 
 func (p *program) Start(s service.Service) error {
@@ -154,9 +157,12 @@ func (p *program) Run() {
 	}
 
 	// Begin execution
+	wsHub = newHub()
 	launchApi()
 	go cropManager()
 	go copyManager()
+	go wsHub.run()
+	go wsHub.feedSockets()
 	mainLoop()
 }
 
@@ -206,13 +212,20 @@ func initdb() error {
 		status INTEGER
     );
 
-	CREATE TABLE IF NOT EXISTS source_metadata (
-		id INTEGER PRIMARY KEY,
-		codec TEXT,
-		width INTEGER,
-		height INTEGER,
-		FOREIGN KEY (id)
-			REFERENCES transcode_queue (id)
+  CREATE TABLE IF NOT EXISTS source_metadata (
+	id INTEGER PRIMARY KEY,
+	codec TEXT,
+	width INTEGER,
+	height INTEGER,
+	FOREIGN KEY (id)
+		REFERENCES transcode_queue (id)
+
+  CREATE TABLE IF NOT EXISTS log_files (
+	id INTEGER PRIMARY KEY,
+	logfile TEXT,
+	FOREIGN KEY (id)
+		REFERENCES active_jobs (id)
+  )
 	);
     `); err != nil {
 		return err
@@ -288,6 +301,7 @@ func mainLoop() {
 func launchApi() {
 	http.HandleFunc("/statusz", display_rows)
 	http.HandleFunc("/add", newtranscode)
+	http.HandleFunc("/logstream", logStream)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/statusz", http.StatusFound)
 	})

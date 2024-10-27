@@ -6,6 +6,7 @@ require (
 	github.com/google/logger v1.1.1
 	github.com/google/safehtml v0.1.0
 	github.com/kardianos/service v1.2.2
+	github.com/gorilla/websocket v1.5.3
 	golang.org/x/sync v0.8.0
 	golang.org/x/sys v0.24.0
 	modernc.org/sqlite v1.32.0

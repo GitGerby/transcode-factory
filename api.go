@@ -22,12 +22,19 @@ import (
 
 	"github.com/google/logger"
 	template "github.com/google/safehtml/template"
+	"github.com/gorilla/websocket"
 )
 
 type PageData struct {
 	ActiveJobs     []TranscodeJob
 	TranscodeQueue []TranscodeJob
 	CompletedJobs  []TranscodeJob
+}
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
 func display_rows(w http.ResponseWriter, req *http.Request) {
@@ -171,4 +178,22 @@ func newtranscode(w http.ResponseWriter, req *http.Request) {
 	tx.Commit()
 	logger.Infof("Added job id %d for %#v", id, j)
 	fmt.Fprintf(w, `{"id": %d}`, id)
+}
+
+func logStream(w http.ResponseWriter, r *http.Request) {
+	wsconn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		logger.Errorf("failed to upgrade websocket: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	defer wsconn.Close()
+	hubClient := Client{
+		hub:  wsHub,
+		conn: wsconn,
+		send: make(chan statusMessage, 10),
+	}
+	go hubClient.writePump()
+	go hubClient.readPump()
+
 }
