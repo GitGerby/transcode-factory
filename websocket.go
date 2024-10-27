@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"io"
 	"os"
 	"time"
 
@@ -212,17 +213,11 @@ func tailLog(filePath string) (string, error) {
 	}
 	defer file.Close()
 
-	// Move the cursor to the end of the file and start reading backwards.
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return "", err
-	}
-	fileSize := fileInfo.Size()
 	bufferSize := int64(4096) // Adjust buffer size as needed
 	var lastLine []byte
-	for i := int64(1); i <= bufferSize; i++ {
+	for i := int64(2); i <= bufferSize; i++ {
 		// Move the cursor back by `i` bytes from the end of the file.
-		_, err := file.Seek(fileSize-i, os.SEEK_END)
+		_, err := file.Seek(-i, io.SeekEnd)
 		if err != nil {
 			return "", err
 		}
@@ -235,7 +230,7 @@ func tailLog(filePath string) (string, error) {
 		if char[0] == '\n' {
 			// Found a newline character, read the preceding bytes to get the last line.
 			lastLine = make([]byte, i-1)
-			_, err := file.Seek(fileSize-i+1, os.SEEK_END)
+			_, err := file.Seek(-i+1, io.SeekEnd)
 			if err != nil {
 				return "", err
 			}
