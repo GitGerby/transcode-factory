@@ -122,6 +122,7 @@ func updateJobStatus(id int, js JobState) error {
 	if err != nil {
 		return fmt.Errorf("failed to update job state: %q", err)
 	}
+	wsHub.refresh <- true
 	return tx.Commit()
 }
 
@@ -303,5 +304,7 @@ func finishJob(tj *TranscodeJob, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to remove job records: %v", err)
 	}
+
+	wsHub.refresh <- true
 	return tx.Commit()
 }
