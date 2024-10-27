@@ -232,7 +232,7 @@ func tailLog(filePath string) (string, error) {
 			break
 		}
 		if char[0] == '\n' {
-			// Found a newline character, read the preceding bytes to get the last line.
+			// Found a newline character, read the bytes to get the last line.
 			lastLine = make([]byte, i-1)
 			_, err := file.Seek(-i+1, io.SeekEnd)
 			if err != nil {
@@ -246,7 +246,7 @@ func tailLog(filePath string) (string, error) {
 		}
 	}
 
-	// If no newline was found (e.g., the entire file is a single line), read from the beginning to the buffer size.
+	// If no newline was found (e.g., the entire file is a single line), read from the end backwards to the buffer size.
 	if len(lastLine) == 0 {
 		lastLine = make([]byte, min(fileStat.Size(), bufferSize))
 		file.Seek(-int64(len(lastLine)), io.SeekEnd)
