@@ -169,6 +169,11 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 		return nil, fmt.Errorf("failed to create log file: %v", err)
 	}
 
+	err = registerLogFile(tj.Id, logdest)
+	if err != nil {
+		logger.Errorf("failed to register log file: %v", err)
+	}
+
 	cmd := exec.CommandContext(ctx, ffmpegbinary, args...)
 	cmd.Stderr = log
 	cmd.Stdout = log

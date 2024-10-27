@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/logger"
 )
@@ -307,4 +308,18 @@ func finishJob(tj *TranscodeJob, args []string) error {
 
 	wsHub.refresh <- true
 	return tx.Commit()
+}
+
+func registerLogFile(jobId int, filePath string) error {
+	_, err := db.Exec(`
+	INSERT INTO log_files(id, logfile)
+	VALUES(?,?)`, jobId, filePath)
+	if err != nil {
+		return err
+	}
+	go func() {
+		time.Sleep(5 * time.Second)
+		wsHub.refresh <- true
+	}()
+	return nil
 }
