@@ -212,10 +212,14 @@ func tailLog(filePath string) (string, error) {
 		return "", err
 	}
 	defer file.Close()
+	fileStat, err := os.Stat(filePath)
+	if err != nil {
+		return "", err
+	}
 
-	bufferSize := int64(4096) // Adjust buffer size as needed
+	bufferSize := int64(1024) // Adjust buffer size as needed
 	var lastLine []byte
-	for i := int64(2); i <= bufferSize; i++ {
+	for i := int64(2); i <= bufferSize && i < fileStat.Size(); i++ {
 		// Move the cursor back by `i` bytes from the end of the file.
 		_, err := file.Seek(-i, io.SeekEnd)
 		if err != nil {
@@ -244,7 +248,8 @@ func tailLog(filePath string) (string, error) {
 
 	// If no newline was found (e.g., the entire file is a single line), read from the beginning to the buffer size.
 	if len(lastLine) == 0 {
-		lastLine = make([]byte, bufferSize)
+		lastLine = make([]byte, min(fileStat.Size(), bufferSize))
+		file.Seek(-int64(len(lastLine)), io.SeekEnd)
 		_, err := file.Read(lastLine)
 		if err != nil {
 			return "", err
