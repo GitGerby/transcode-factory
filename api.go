@@ -20,8 +20,9 @@ import (
 	"fmt"
 	"net/http"
 
+	template "html/template"
+
 	"github.com/google/logger"
-	template "github.com/google/safehtml/template"
 	"github.com/gorilla/websocket"
 )
 
@@ -52,7 +53,7 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 	q, err := tx.Query(`
   SELECT id, source, destination, codec, IFNULL(crf,18), IFNULL(autocrop,1), srt_files 
   FROM transcode_queue
-	WHERE id not in (SELECT id FROM active_job)
+	WHERE id not in (SELECT id FROM active_jobs)
   ORDER BY id ASC
   `)
 	if err != nil {
@@ -62,18 +63,18 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 
 	// parse queue into datastructure
 	for q.Next() {
-		var r TranscodeJob
-		err := q.Scan(&r.Id, &r.JobDefinition.Source, &r.JobDefinition.Destination, &r.JobDefinition.Codec, &r.JobDefinition.Crf, &r.JobDefinition.Autocrop, &srtj)
+		var jobRow TranscodeJob
+		err := q.Scan(&jobRow.Id, &jobRow.JobDefinition.Source, &jobRow.JobDefinition.Destination, &jobRow.JobDefinition.Codec, &jobRow.JobDefinition.Crf, &jobRow.JobDefinition.Autocrop, &srtj)
 		if err != nil && err != sql.ErrNoRows {
 			fmt.Fprintf(w, "fatal error scanning db response for queue: %#v", err)
 			return
 		}
 
-		if err := json.Unmarshal(srtj, &r.JobDefinition.Srt_files); err != nil {
+		if err := json.Unmarshal(srtj, &jobRow.JobDefinition.Srt_files); err != nil {
 			logger.Error("failed to unmarshall queue srt file")
 		}
 
-		page.TranscodeQueue = append(page.TranscodeQueue, r)
+		page.TranscodeQueue = append(page.TranscodeQueue, jobRow)
 	}
 	q.Close()
 
@@ -84,18 +85,16 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 		source,
 		destination,
 		IFNULL(job_state,0),
-		IFNULL(current_frame,0),
-		IFNULL(total_frames,0),
 		IFNULL(video_filters, 'empty'),
 		srt_files,
 		IIF(transcode_queue.codec = 'copy', 0, crf),
 		IFNULL(source_metadata.codec, 'unknown') as source_codec,
 		IFNULL(transcode_queue.codec, 'libx265') as destination_codec
 	FROM transcode_queue
-		JOIN (active_job 
+		JOIN (active_jobs 
 			LEFT JOIN source_metadata 
-				ON source_metadata.id = active_job.id)
-			ON transcode_queue.id = active_job.id`)
+				ON source_metadata.id = active_jobs.id)
+			ON transcode_queue.id = active_jobs.id`)
 	if err != nil {
 		logger.Errorf("error fetching active jobs: %q", err)
 		return
@@ -103,7 +102,7 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 	defer a.Close()
 	for a.Next() {
 		var r TranscodeJob
-		err = a.Scan(&r.Id, &r.JobDefinition.Source, &r.JobDefinition.Destination, &r.State, &r.CurrentFrame, &r.SourceMeta.TotalFrames, &r.JobDefinition.Video_filters, &srtj, &r.JobDefinition.Crf, &r.SourceMeta.Codec, &r.JobDefinition.Codec)
+		err = a.Scan(&r.Id, &r.JobDefinition.Source, &r.JobDefinition.Destination, &r.State, &r.JobDefinition.Video_filters, &srtj, &r.JobDefinition.Crf, &r.SourceMeta.Codec, &r.JobDefinition.Codec)
 
 		if err := json.Unmarshal(srtj, &r.JobDefinition.Srt_files); err != nil {
 			logger.Error("failed to unmarshall queue srt file")
@@ -119,11 +118,12 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 	// page.QueueLength = len(page.TranscodeQueue)
 	t, err := template.New("results").Parse(html_template)
 	if err != nil {
-		fmt.Fprintf(w, "fatal error parsing template: %v+", err)
+		logger.Errorf("fatal error parsing template: %#v", err)
 	}
 
 	if err := t.Execute(w, page); err != nil {
-		logger.Errorf("template failed: %q", err)
+		p, _ := json.Marshal(page)
+		logger.Errorf("template with data '%s' failed: %v,", p, err)
 	}
 }
 
@@ -178,6 +178,7 @@ func newtranscode(w http.ResponseWriter, req *http.Request) {
 	tx.Commit()
 	logger.Infof("Added job id %d for %#v", id, j)
 	fmt.Fprintf(w, `{"id": %d}`, id)
+	wsHub.refresh <- true
 }
 
 func logStream(w http.ResponseWriter, r *http.Request) {
@@ -187,12 +188,12 @@ func logStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	defer wsconn.Close()
-	hubClient := Client{
+	hubClient := &Client{
 		hub:  wsHub,
 		conn: wsconn,
 		send: make(chan statusMessage, 10),
 	}
+	hubClient.hub.register <- hubClient
 	go hubClient.writePump()
 	go hubClient.readPump()
 

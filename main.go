@@ -188,8 +188,9 @@ func initdb() error {
 	crop_complete INTEGER DEFAULT 0
   );
 
-  DROP TABLE IF EXISTS active_job;
-  CREATE TABLE IF NOT EXISTS active_job (
+	DROP TABLE IF EXISTS active_job;
+  DROP TABLE IF EXISTS active_jobs;
+  CREATE TABLE IF NOT EXISTS active_jobs (
     ffmpeg_pid INTEGER,
     job_state INTEGER,
     current_frame INTEGER,
@@ -219,13 +220,13 @@ func initdb() error {
 	height INTEGER,
 	FOREIGN KEY (id)
 		REFERENCES transcode_queue (id)
+	);
 
   CREATE TABLE IF NOT EXISTS log_files (
 	id INTEGER PRIMARY KEY,
 	logfile TEXT,
 	FOREIGN KEY (id)
 		REFERENCES active_jobs (id)
-  )
 	);
     `); err != nil {
 		return err

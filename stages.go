@@ -32,7 +32,7 @@ func pullNextCrop() (TranscodeJob, error) {
   SELECT id, source, video_filters
   FROM transcode_queue 
 	WHERE id NOT IN (SELECT id FROM completed_jobs)
-		AND id NOT IN (SELECT id FROM active_job)
+		AND id NOT IN (SELECT id FROM active_jobs)
 		AND autocrop = 1 
 		AND crop_complete != 1
 		AND codec != 'copy'
@@ -57,7 +57,7 @@ func pullNextTranscode() (TranscodeJob, error) {
   SELECT id, source, destination, IFNULL(crf,18) as crf, srt_files, IFNULL(autocrop,1) as autocrop, video_filters, audio_filters, codec 
   FROM transcode_queue
   WHERE id NOT IN (SELECT id FROM completed_jobs)
-	AND id NOT IN (SELECT id FROM active_job)
+	AND id NOT IN (SELECT id FROM active_jobs)
 	AND ((autocrop = 1 AND crop_complete = 1) OR (autocrop = 0) OR (LOWER(codec) = 'copy'))
   ORDER BY id ASC
   LIMIT 1;`
@@ -85,7 +85,7 @@ func deactivateJob(id int) error {
 		return fmt.Errorf("failed to begin transaction: %q", err)
 	}
 	defer tx.Rollback()
-	tx.Exec("DELETE FROM active_job WHERE id = ?", id)
+	tx.Exec("DELETE FROM active_jobs WHERE id = ?", id)
 	return tx.Commit()
 }
 
@@ -97,7 +97,7 @@ func updateJobStatus(id int, js JobState) error {
 	defer tx.Rollback()
 
 	i, err := tx.Prepare(`
-  INSERT OR IGNORE INTO active_job (id)
+  INSERT OR IGNORE INTO active_jobs (id)
   VALUES (?)
   `)
 	if err != nil {
@@ -106,7 +106,7 @@ func updateJobStatus(id int, js JobState) error {
 	defer i.Close()
 
 	u, err := tx.Prepare(`
-  UPDATE active_job
+  UPDATE active_jobs
   SET job_state = ?
   WHERE id = ?
   `)
@@ -117,7 +117,7 @@ func updateJobStatus(id int, js JobState) error {
 
 	_, err = i.Exec(id)
 	if err != nil {
-		return fmt.Errorf("failed to add job to active_job table: %q", err)
+		return fmt.Errorf("failed to add job to active_jobs table: %q", err)
 	}
 	_, err = u.Exec(js, id)
 	if err != nil {
@@ -182,7 +182,7 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 		return fmt.Errorf("countFrames returned: %q", err)
 	}
 
-	_, err = tx.Exec("UPDATE active_job SET total_frames = ?, source_codec = ? WHERE id = ?", fc.TotalFrames, fc.Codec, tj.Id)
+	_, err = tx.Exec("UPDATE active_jobs SET total_frames = ?, source_codec = ? WHERE id = ?", fc.TotalFrames, fc.Codec, tj.Id)
 	if err != nil {
 		return fmt.Errorf("failed to update source metadata: %q", err)
 	}
@@ -239,7 +239,7 @@ func compileVF(tj *TranscodeJob) error {
 	if err != nil {
 		return fmt.Errorf("failed to persist video_filters: %q", err)
 	}
-	_, err = tx.Exec("UPDATE active_job SET vfilter = ? WHERE id = ?", tj.JobDefinition.Video_filters, tj.Id)
+	_, err = tx.Exec("UPDATE active_jobs SET vfilter = ? WHERE id = ?", tj.JobDefinition.Video_filters, tj.Id)
 	if err != nil {
 		return fmt.Errorf("failed to update video_filters: %q", err)
 	}
@@ -275,7 +275,7 @@ func finishJob(tj *TranscodeJob, args []string) error {
 	`
 	rm := `
 	DELETE FROM transcode_queue WHERE id = ?;
-	DELETE FROM active_job WHERE id = ?;
+	DELETE FROM active_jobs WHERE id = ?;
 	DELETE FROM source_metadata WHERE id = ?;
 	`
 	tx, err := db.Begin()

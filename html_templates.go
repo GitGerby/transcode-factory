@@ -1,9 +1,10 @@
 package main
+
 const html_template = `
 <!DOCTYPE html>
 <html>
 <head>
-<meta http-equiv="refresh" content="10">
+<meta http-equiv="refresh" content="300">
 <style>
 	table, td, th {
 		border: 1px solid;
@@ -110,5 +111,24 @@ const html_template = `
       </tr>
     {{end}}
   </table>
+	    <script>
+				var loc = window.location.hostname;
+				var ws_uri = "ws://" + loc + ":51218/logstream";
+        var ws = new WebSocket(ws_uri);
+
+        ws.onmessage = function(event) {
+					var statusMessage = JSON.parse(event.data);
+					console.log("got message:", statusMessage);
+
+						if (statusMessage.RefreshNeeded == true) {
+							location.reload();
+						}
+
+        };
+
+        ws.onerror = function(err) {
+            console.log("WebSocket Error:", err);
+        };
+    </script>
 </body>
 `

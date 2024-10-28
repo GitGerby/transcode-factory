@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/logger"
@@ -12,7 +13,7 @@ import (
 
 const (
 	// Time allowed to write a message to the peer.
-	writeWait = 5 * time.Second
+	writeWait = 600 * time.Second
 
 	// Time allowed to read the next pong message from the peer.
 	pongWait = 30 * time.Second
@@ -62,6 +63,7 @@ type Hub struct {
 func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
+		c.hub.unregister <- c
 		ticker.Stop()
 		c.conn.Close()
 	}()
@@ -72,15 +74,18 @@ func (c *Client) writePump() {
 			if !ok {
 				// The hub closed the channel.
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				logger.Infof("client: %#v, the hub closed the channel", c)
 				return
 			}
 
 			if err := c.conn.WriteJSON(message); err != nil {
+				logger.Errorf("client: %#v, error writing json message: %v", c, err)
 				return
 			}
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				logger.Errorf("client: %#v, error writing message: %v", c, err)
 				return
 			}
 		}
@@ -88,10 +93,6 @@ func (c *Client) writePump() {
 }
 
 func (c *Client) readPump() {
-	defer func() {
-		c.hub.unregister <- c
-		c.conn.Close()
-	}()
 	c.conn.SetReadLimit(4096)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
@@ -121,10 +122,12 @@ func (h *Hub) run() {
 		select {
 		case client := <-h.register:
 			h.clients[client] = true
+			logger.Infof("registered client %#v", client)
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
+				logger.Infof("unregistered client %#v", client)
 			}
 		case message := <-h.broadcast:
 			for client := range h.clients {
@@ -160,6 +163,7 @@ func (h *Hub) feedSockets() {
 		}
 		select {
 		case wsu.RefreshNeeded = <-h.refresh:
+			logger.Info("received request to refresh statusz pages")
 			h.broadcast <- wsu
 			wsu.RefreshNeeded = false
 		case <-rt.C:
@@ -173,7 +177,9 @@ func (h *Hub) feedSockets() {
 				logger.Errorf("could not get log tails: %v", err)
 			}
 			lf.Close()
-			h.broadcast <- wsu
+			if len(wsu.LogMessages) > 0 {
+				h.broadcast <- wsu
+			}
 		}
 	}
 }
@@ -231,7 +237,7 @@ func tailLog(filePath string) (string, error) {
 			// If we've reached the beginning of the file or there's an error, stop reading.
 			break
 		}
-		if char[0] == '\n' {
+		if char[0] == '\n' || char[0] == '\r' {
 			// Found a newline character, read the bytes to get the last line.
 			lastLine = make([]byte, i-1)
 			_, err := file.Seek(-i+1, io.SeekEnd)
@@ -256,5 +262,5 @@ func tailLog(filePath string) (string, error) {
 		}
 	}
 
-	return string(lastLine), nil
+	return strings.TrimSpace(string(lastLine)), nil
 }
