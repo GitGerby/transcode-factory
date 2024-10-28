@@ -27,9 +27,9 @@ import (
 )
 
 type PageData struct {
-	ActiveJobs     []TranscodeJob
-	TranscodeQueue []TranscodeJob
-	CompletedJobs  []TranscodeJob
+	ActiveJobs    []TranscodeJob
+	QueuedJobs    []PageQueueInfo
+	CompletedJobs []TranscodeJob
 }
 
 var upgrader = websocket.Upgrader{
@@ -38,9 +38,111 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
+type PageQueueInfo struct {
+	Id            int
+	JobDefinition TranscodeRequest
+	SourceMeta    MediaMetadata
+	State         JobState
+	CropState     string
+}
+
+func queryQueued() ([]PageQueueInfo, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Commit()
+
+	var queuedJobs []PageQueueInfo
+	var srtJsonBlob []byte
+
+	q, err := tx.Query(`
+  SELECT id, 
+		source,
+		destination,
+		codec,
+		IFNULL(crf,18),
+		CASE
+			WHEN autocrop = 1 AND crop_complete = 1 THEN 'complete'
+			WHEN autocrop = 1 AND crop_complete = 0 THEN 'pending'
+			WHEN autocrop IS NULL THEN 'pending'
+			ELSE 'false'
+		END AS autocrop,
+		srt_files 
+  FROM transcode_queue
+	WHERE id not in (SELECT id FROM active_jobs)
+  ORDER BY id ASC
+  `)
+	if err != nil {
+		return nil, err
+	}
+	defer q.Close()
+
+	for q.Next() {
+		var jobRow PageQueueInfo
+		err := q.Scan(&jobRow.Id, &jobRow.JobDefinition.Source, &jobRow.JobDefinition.Destination, &jobRow.JobDefinition.Codec, &jobRow.JobDefinition.Crf, &jobRow.CropState, &srtJsonBlob)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, fmt.Errorf("failed scanning rows: %v", err)
+		}
+
+		if err := json.Unmarshal(srtJsonBlob, &jobRow.JobDefinition.Srt_files); err != nil {
+			logger.Error("failed to unmarshall queue srt file")
+		}
+
+		queuedJobs = append(queuedJobs, jobRow)
+	}
+	return queuedJobs, nil
+}
+
+func queryActive() ([]TranscodeJob, error) {
+	var srtJsonBlob []byte
+	tx, err := db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Commit()
+
+	var activeJobs []TranscodeJob
+
+	a, err := tx.Query(`
+	SELECT 
+		transcode_queue.id,
+		source,
+		destination,
+		IFNULL(job_state,0),
+		IFNULL(video_filters, 'none'),
+		srt_files,
+		IIF(transcode_queue.codec = 'copy', 0, crf),
+		IFNULL(source_metadata.codec, 'unknown') as source_codec,
+		IFNULL(transcode_queue.codec, 'libx265') as destination_codec,
+		IFNULL(source_metadata.duration, 'unknown') as duration
+	FROM transcode_queue
+		JOIN (active_jobs 
+			LEFT JOIN source_metadata 
+				ON source_metadata.id = active_jobs.id)
+			ON transcode_queue.id = active_jobs.id`)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching active jobs: %q", err)
+	}
+	defer a.Close()
+
+	for a.Next() {
+		var jobRow TranscodeJob
+		err = a.Scan(&jobRow.Id, &jobRow.JobDefinition.Source, &jobRow.JobDefinition.Destination, &jobRow.State, &jobRow.JobDefinition.Video_filters, &srtJsonBlob, &jobRow.JobDefinition.Crf, &jobRow.SourceMeta.Codec, &jobRow.JobDefinition.Codec, &jobRow.SourceMeta.Duration)
+
+		if err := json.Unmarshal(srtJsonBlob, &jobRow.JobDefinition.Srt_files); err != nil {
+			logger.Error("failed to unmarshall queue srt source(s)")
+		}
+
+		activeJobs = append(activeJobs, jobRow)
+	}
+	if err != nil && err != sql.ErrNoRows {
+		return nil, fmt.Errorf("fatal error scanning db response for active job: %#v", err)
+	}
+	return activeJobs, nil
+}
+
 func display_rows(w http.ResponseWriter, req *http.Request) {
-	// setup required variables
-	var srtj []byte
 	page := PageData{}
 	tx, err := db.Begin()
 	if err != nil {
@@ -49,70 +151,13 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 	}
 	defer tx.Commit()
 
-	// first query for queue items
-	q, err := tx.Query(`
-  SELECT id, source, destination, codec, IFNULL(crf,18), IFNULL(autocrop,1), srt_files 
-  FROM transcode_queue
-	WHERE id not in (SELECT id FROM active_jobs)
-  ORDER BY id ASC
-  `)
+	page.QueuedJobs, err = queryQueued()
 	if err != nil {
-		fmt.Fprintf(w, "%+v", err)
+		logger.Errorf("failed to retrieve queued jobs: %v", err)
 	}
-	defer q.Close()
-
-	// parse queue into datastructure
-	for q.Next() {
-		var jobRow TranscodeJob
-		err := q.Scan(&jobRow.Id, &jobRow.JobDefinition.Source, &jobRow.JobDefinition.Destination, &jobRow.JobDefinition.Codec, &jobRow.JobDefinition.Crf, &jobRow.JobDefinition.Autocrop, &srtj)
-		if err != nil && err != sql.ErrNoRows {
-			fmt.Fprintf(w, "fatal error scanning db response for queue: %#v", err)
-			return
-		}
-
-		if err := json.Unmarshal(srtj, &jobRow.JobDefinition.Srt_files); err != nil {
-			logger.Error("failed to unmarshall queue srt file")
-		}
-
-		page.TranscodeQueue = append(page.TranscodeQueue, jobRow)
-	}
-	q.Close()
-
-	// query for active jobs
-	a, err := tx.Query(`
-	SELECT 
-		transcode_queue.id,
-		source,
-		destination,
-		IFNULL(job_state,0),
-		IFNULL(video_filters, 'empty'),
-		srt_files,
-		IIF(transcode_queue.codec = 'copy', 0, crf),
-		IFNULL(source_metadata.codec, 'unknown') as source_codec,
-		IFNULL(transcode_queue.codec, 'libx265') as destination_codec
-	FROM transcode_queue
-		JOIN (active_jobs 
-			LEFT JOIN source_metadata 
-				ON source_metadata.id = active_jobs.id)
-			ON transcode_queue.id = active_jobs.id`)
+	page.ActiveJobs, err = queryActive()
 	if err != nil {
-		logger.Errorf("error fetching active jobs: %q", err)
-		return
-	}
-	defer a.Close()
-	for a.Next() {
-		var r TranscodeJob
-		err = a.Scan(&r.Id, &r.JobDefinition.Source, &r.JobDefinition.Destination, &r.State, &r.JobDefinition.Video_filters, &srtj, &r.JobDefinition.Crf, &r.SourceMeta.Codec, &r.JobDefinition.Codec)
-
-		if err := json.Unmarshal(srtj, &r.JobDefinition.Srt_files); err != nil {
-			logger.Error("failed to unmarshall queue srt file")
-		}
-
-		page.ActiveJobs = append(page.ActiveJobs, r)
-	}
-	if err != nil && err != sql.ErrNoRows {
-		fmt.Fprintf(w, "fatal error scanning db response for active job: %#v", err)
-		return
+		logger.Errorf("failed to retrieve active jobs: %v", err)
 	}
 
 	// page.QueueLength = len(page.TranscodeQueue)

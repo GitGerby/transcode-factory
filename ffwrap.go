@@ -63,6 +63,7 @@ type colorSideInfo struct {
 
 type FfprobeOutput struct {
 	Streams []FfprobeStreams
+	Format  FfprobeFormat
 }
 
 type FfprobeStreams struct {
@@ -71,6 +72,10 @@ type FfprobeStreams struct {
 	Frames     string `json:"nb_read_frames"`
 	Width      int    `json:"width"`
 	Height     int    `json:"height"`
+}
+
+type FfprobeFormat struct {
+	Duration string `json:"duration"`
 }
 
 var (
@@ -110,27 +115,27 @@ func detectCrop(inputFile string) (string, error) {
 
 func probeMetadata(s string) (MediaMetadata, error) {
 	args := []string{
-		"-threads", "32", "-v", "error", "-select_streams", "v:0", "-show_entries",
-		"stream=codec_name,width,height,", "-print_format", "json", s,
+		"-threads", "32", "-v", "error", "-select_streams", "v:0", "-show_format", "-show_entries",
+		"stream=codec_name,width,height,", "-print_format", "json", "-sexagesimal", s,
 	}
 	logger.Infof("calling ffprobe with: %#v", args)
 	cmd := exec.CommandContext(ctx, ffprobebinary, args...)
 	o, err := cmd.CombinedOutput()
 	if err != nil {
-		return MediaMetadata{}, fmt.Errorf("failed to count frames: %v", err)
+		return MediaMetadata{}, fmt.Errorf("%q failed retrieve metadata: %v", s, err)
 	}
 	if cmd.ProcessState.ExitCode() != 0 {
-		return MediaMetadata{}, fmt.Errorf("ffprobe exited with nonzero exit code: %q", cmd.ProcessState.ExitCode())
+		return MediaMetadata{}, fmt.Errorf("%q ffprobe exited with nonzero exit code: %q", s, cmd.ProcessState.ExitCode())
 	}
 
 	var ffp FfprobeOutput
 	json.Unmarshal(o, &ffp)
 
 	return MediaMetadata{
-		TotalFrames: 0,
-		Codec:       ffp.Streams[0].Codec,
-		Width:       ffp.Streams[0].Width,
-		Height:      ffp.Streams[0].Height,
+		Duration: ffp.Format.Duration,
+		Codec:    ffp.Streams[0].Codec,
+		Width:    ffp.Streams[0].Width,
+		Height:   ffp.Streams[0].Height,
 	}, nil
 }
 
@@ -175,6 +180,7 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	}
 
 	cmd := exec.CommandContext(ctx, ffmpegbinary, args...)
+	cmd.Dir = filepath.Dir(ffmpegbinary)
 	cmd.Stderr = log
 	cmd.Stdout = log
 	logger.Infof("calling ffmpeg with args: %#v", args)

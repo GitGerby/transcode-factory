@@ -182,18 +182,18 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 		return fmt.Errorf("countFrames returned: %q", err)
 	}
 
-	_, err = tx.Exec("UPDATE active_jobs SET total_frames = ?, source_codec = ? WHERE id = ?", fc.TotalFrames, fc.Codec, tj.Id)
+	_, err = tx.Exec("UPDATE active_jobs SET source_codec = ? WHERE id = ?", fc.Codec, tj.Id)
 	if err != nil {
 		return fmt.Errorf("failed to update source metadata: %q", err)
 	}
-	_, err = tx.Exec("UPDATE source_metadata SET codec = ?, width = ?, height = ? WHERE id = ?", fc.Codec, fc.Width, fc.Height, tj.Id)
+	_, err = tx.Exec("UPDATE source_metadata SET codec = ?, width = ?, height = ?, duration = ? WHERE id = ?", fc.Codec, fc.Width, fc.Height, fc.Duration, tj.Id)
 	if err != nil {
 		return fmt.Errorf("failed to update source metadata: %q", err)
 	}
 	tj.SourceMeta.Width = fc.Width
 	tj.SourceMeta.Height = fc.Height
 	tj.SourceMeta.Codec = fc.Codec
-	tj.SourceMeta.TotalFrames = fc.TotalFrames
+	tj.SourceMeta.Duration = fc.Duration
 	logger.Infof("job id %d:source metadata: %#v", tj.Id, tj.SourceMeta)
 	return tx.Commit()
 }
@@ -312,7 +312,7 @@ func finishJob(tj *TranscodeJob, args []string) error {
 
 func registerLogFile(jobId int, filePath string) error {
 	_, err := db.Exec(`
-	INSERT INTO log_files(id, logfile)
+	INSERT OR REPLACE INTO log_files(id, logfile)
 	VALUES(?,?)`, jobId, filePath)
 	if err != nil {
 		return err

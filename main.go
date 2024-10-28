@@ -47,7 +47,6 @@ type TranscodeRequest struct {
 	Video_filters string   `json:"video_filters"`
 	Audio_filters string   `json:"audio_filters"`
 	Codec         string   `json:"codec"`
-	CurrentFrame  int
 }
 
 type TranscodeJob struct {
@@ -55,28 +54,27 @@ type TranscodeJob struct {
 	JobDefinition TranscodeRequest
 	SourceMeta    MediaMetadata
 	State         JobState
-	CurrentFrame  int
 }
 
 type MediaMetadata struct {
-	TotalFrames int
-	Codec       string
-	Width       int
-	Height      int
+	Duration string
+	Codec    string
+	Width    int
+	Height   int
 }
 
-type JobState int
+type JobState string
 
 const (
-	Submitted JobState = iota
-	ExaminingSource
-	BuildVideoFilter
-	BuildAudioFilter
-	AwaitingTranscode
-	Transcoding
-	Complete
-	Failed
-	Cancelled
+	JOB_SUBMITTED        = "submitted"
+	JOB_METADATA         = "probing source metadata"
+	JOB_BUILDVIDEOFILTER = "constructing video filter graph"
+	JOB_BUILDAUDIOFILTER = "constructing audio filter graph"
+	JOB_PENDINGTRANSCODE = "waiting for transcoder slot"
+	JOB_TRANSCODING      = "copying or transcoding media"
+	JOB_SUCCESS          = "completed successfully"
+	JOB_FAILED           = "job failed"
+	JOB_CANCELLED        = "job cancelled before completion"
 )
 
 var (
@@ -193,8 +191,6 @@ func initdb() error {
   CREATE TABLE IF NOT EXISTS active_jobs (
     ffmpeg_pid INTEGER,
     job_state INTEGER,
-    current_frame INTEGER,
-    total_frames INTEGER,
     vfilter TEXT,
     afilter TEXT,
     source_codec TEXT,
@@ -218,6 +214,7 @@ func initdb() error {
 	codec TEXT,
 	width INTEGER,
 	height INTEGER,
+	duration TEXT,
 	FOREIGN KEY (id)
 		REFERENCES transcode_queue (id)
 	);
@@ -245,9 +242,9 @@ func mainLoop() {
 		}
 
 		logger.Infof("job id %d: beginning processing", tj.Id)
-		if err := updateJobStatus(tj.Id, ExaminingSource); err != nil {
+		if err := updateJobStatus(tj.Id, JOB_METADATA); err != nil {
 			logger.Errorf("failed to mark job active: %v", err)
-			tj.State = Failed
+			tj.State = JOB_FAILED
 			if err := finishJob(&tj, nil); err != nil {
 				logger.Fatalf("failed to cleanup job: %q", err)
 			}
@@ -261,7 +258,7 @@ func mainLoop() {
 				return
 			}
 			logger.Errorf("ffprobe failed: %v", err)
-			tj.State = Failed
+			tj.State = JOB_FAILED
 			if err := finishJob(&tj, nil); err != nil {
 				logger.Fatalf("failed to cleanup job: %q", err)
 			}
@@ -269,7 +266,7 @@ func mainLoop() {
 		}
 
 		logger.Infof("job id %d: beginning transcode", tj.Id)
-		updateJobStatus(tj.Id, Transcoding)
+		updateJobStatus(tj.Id, JOB_TRANSCODING)
 
 		var args []string
 		switch tj.JobDefinition.Codec {
@@ -285,15 +282,15 @@ func mainLoop() {
 				return
 			}
 			logger.Errorf("transcodeMedia() error: %q", err)
-			tj.State = Failed
+			tj.State = JOB_FAILED
 			if err := finishJob(&tj, nil); err != nil {
 				logger.Fatalf("failed to cleanup job: %q", err)
 			}
 			continue
 		}
 
-		updateJobStatus(tj.Id, Complete)
-		tj.State = Complete
+		updateJobStatus(tj.Id, JOB_SUCCESS)
+		tj.State = JOB_SUCCESS
 		finishJob(&tj, args)
 		logger.Infof("job id %d: complete", tj.Id)
 	}
@@ -324,7 +321,7 @@ func cropManager() {
 
 		cg.Go(func() error {
 			logger.Infof("job id %d: building video filter graph", tj.Id)
-			updateJobStatus(tj.Id, BuildVideoFilter)
+			updateJobStatus(tj.Id, JOB_BUILDVIDEOFILTER)
 			err := updateSourceMetadata(&tj)
 			if errors.Is(err, context.Canceled) {
 				return err
@@ -336,13 +333,14 @@ func cropManager() {
 			if err != nil {
 				logger.Errorf("job id %d: failed to compile vf: %q", tj.Id, err)
 			}
-			updateJobStatus(tj.Id, AwaitingTranscode)
+			updateJobStatus(tj.Id, JOB_PENDINGTRANSCODE)
 			err = deactivateJob(tj.Id)
 			if err != nil {
 				logger.Errorf("job id %d: failed to deactivate job: %q", tj.Id, err)
 			}
 			return nil
 		})
+		time.Sleep(1 * time.Second) // give time for the job to activate, 1 seconds is a good compromise between throughput and latency
 	}
 }
 
@@ -362,7 +360,7 @@ func copyManager() {
 
 		cwg.Go(func() error {
 			logger.Infof("starting copy for %#v", tj)
-			updateJobStatus(tj.Id, AwaitingTranscode)
+			updateJobStatus(tj.Id, JOB_PENDINGTRANSCODE)
 			if err := createDestinationParent(tj.JobDefinition.Destination); err != nil {
 				logger.Errorf("failed to create destination directory: %v", err)
 				return nil
@@ -370,7 +368,7 @@ func copyManager() {
 			if err := updateSourceMetadata(tj); err != nil {
 				logger.Errorf("failed to update source metadata for job %d: %v", tj.Id, err)
 			}
-			if err := updateJobStatus(tj.Id, Transcoding); err != nil {
+			if err := updateJobStatus(tj.Id, JOB_TRANSCODING); err != nil {
 				logger.Errorf("failed to update job: %d with error: %v", tj.Id, err)
 			}
 			args, err := ffmpegTranscode(*tj)
@@ -383,7 +381,7 @@ func copyManager() {
 					logger.Errorf("failed to cleanup job: %q", err)
 				}
 			}
-			tj.State = Complete
+			tj.State = JOB_SUCCESS
 			finishJob(tj, args)
 			logger.Infof("job id %d: complete", tj.Id)
 			return nil
@@ -402,7 +400,7 @@ func dequeueCopy() *TranscodeJob {
 func enqueueCopy(tj *TranscodeJob) {
 	muCopy.Lock()
 	defer func() { muCopy.Unlock() }()
-	updateJobStatus(tj.Id, AwaitingTranscode)
+	updateJobStatus(tj.Id, JOB_PENDINGTRANSCODE)
 	queueCopy = append(queueCopy, tj)
 }
 

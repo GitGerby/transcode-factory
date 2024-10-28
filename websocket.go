@@ -130,6 +130,22 @@ func (h *Hub) run() {
 				logger.Infof("unregistered client %#v", client)
 			}
 		case message := <-h.broadcast:
+			// drain the queue
+			r := message.RefreshNeeded
+			l := message.LogMessages
+			ql := len(h.broadcast)
+			for i := 0; i < ql; i++ {
+				nm := <-h.broadcast
+				if nm.RefreshNeeded {
+					r = true
+				}
+				if len(nm.LogMessages) > 0 {
+					l = nm.LogMessages
+				}
+			}
+			// send only the most relevant message
+			message.RefreshNeeded = r
+			message.LogMessages = l
 			for client := range h.clients {
 				select {
 				case client.send <- message:
@@ -186,6 +202,7 @@ func (h *Hub) feedSockets() {
 			if len(wsu.LogMessages) > 0 {
 				h.broadcast <- wsu
 			}
+			wsu.LogMessages = make(map[int]string) // Clear out log messages
 		}
 	}
 }
@@ -224,6 +241,7 @@ func tailLog(filePath string) (string, error) {
 		return "", err
 	}
 	defer file.Close()
+
 	fileStat, err := os.Stat(filePath)
 	if err != nil {
 		return "", err
@@ -267,6 +285,6 @@ func tailLog(filePath string) (string, error) {
 			return "", err
 		}
 	}
-
+	logger.Infof("Last line: %s", string(lastLine))
 	return strings.TrimSpace(string(lastLine)), nil
 }

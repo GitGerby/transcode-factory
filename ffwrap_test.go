@@ -285,7 +285,7 @@ func TestBuildCodec(t *testing.T) {
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list: []colorSideInfo{},
+				Side_data_list:  []colorSideInfo{},
 			},
 			expected: []string{
 				"-c:v", "libx265",
@@ -402,7 +402,7 @@ func TestBuildCodec(t *testing.T) {
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list: []colorSideInfo{},
+				Side_data_list:  []colorSideInfo{},
 			},
 			expected: []string{
 				"-c:v", "libsvtav1",

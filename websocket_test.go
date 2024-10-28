@@ -11,11 +11,21 @@ const (
 )
 
 func tempWraper(t *testing.T) *os.File {
+	t.Helper()
 	f, err := os.CreateTemp("", "tailLogTest*.txt")
 	if err != nil {
 		t.Fatalf("couldn't create temp file: %v", err)
 	}
 	return f
+}
+
+func openWrap(t *testing.T, f string) *os.File {
+	t.Helper()
+	file, err := os.Open(f)
+	if err != nil {
+		t.Fatalf("couldn't open file: %v", err)
+	}
+	return file
 }
 
 func TestTailLog(t *testing.T) {
@@ -25,6 +35,7 @@ func TestTailLog(t *testing.T) {
 		content     string
 		expected    string
 		shouldError bool
+		clobber     bool
 	}{
 		{
 			desc:        "Good File",
@@ -32,6 +43,7 @@ func TestTailLog(t *testing.T) {
 			content:     "more tests are coming\nin a follow up commit",
 			expected:    "in a follow up commit",
 			shouldError: false,
+			clobber:     true,
 		},
 		{
 			desc:        "Empty File",
@@ -39,6 +51,7 @@ func TestTailLog(t *testing.T) {
 			content:     "",
 			expected:    "",
 			shouldError: false,
+			clobber:     true,
 		},
 		{
 			desc:        "one short line",
@@ -46,6 +59,7 @@ func TestTailLog(t *testing.T) {
 			content:     "this file has one line",
 			expected:    "this file has one line",
 			shouldError: false,
+			clobber:     true,
 		},
 		{
 			desc:        "one long line",
@@ -53,15 +67,35 @@ func TestTailLog(t *testing.T) {
 			content:     gettysburg,
 			expected:    gettysburgTail,
 			shouldError: false,
+			clobber:     true,
+		},
+		{
+			desc:        "carriage returns are annoying",
+			file:        tempWraper(t),
+			content:     "ffmpeg streams output\r with carriage returns which is weird\r when you redirect output\r",
+			expected:    "when you redirect output",
+			shouldError: false,
+			clobber:     true,
+		},
+		{
+			desc:        "actual ffmpeg log",
+			file:        openWrap(t, "ffmpeg_test.log"),
+			content:     "",
+			expected:    "frame= 1077 fps= 35 q=17.0 size=   30720KiB time=00:00:44.87 bitrate=5607.6kbits/s speed=1.45x",
+			shouldError: false,
+			clobber:     false,
 		},
 	}
 	for _, tc := range tt {
-
-		defer os.Remove(tc.file.Name())
-		_, err := tc.file.WriteString(tc.content)
-		tc.file.Sync()
-		if err != nil {
-			t.Fatalf("%s: couldn't populate temp file: %v", tc.desc, err)
+		if tc.clobber {
+			defer os.Remove(tc.file.Name())
+			_, err := tc.file.WriteString(tc.content)
+			if err != nil {
+				t.Fatalf("%s: couldn't populate temp file: %v", tc.desc, err)
+			}
+			if err := tc.file.Sync(); err != nil {
+				t.Fatalf("%s: couldn't sync temp file: %v", tc.desc, err)
+			}
 		}
 		c, err := tailLog(tc.file.Name())
 		if (err != nil && !tc.shouldError) || (err == nil && tc.shouldError) {
