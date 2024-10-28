@@ -109,11 +109,11 @@ func (c *Client) readPump() {
 
 func newHub() *Hub {
 	return &Hub{
-		broadcast:  make(chan statusMessage, 5),
+		broadcast:  make(chan statusMessage, 256),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		clients:    make(map[*Client]bool),
-		refresh:    make(chan bool),
+		refresh:    make(chan bool, 256),
 	}
 }
 
@@ -164,6 +164,12 @@ func (h *Hub) feedSockets() {
 		select {
 		case wsu.RefreshNeeded = <-h.refresh:
 			logger.Info("received request to refresh statusz pages")
+			// Coalesce multiple refresh events to one.
+			time.Sleep(500 * time.Millisecond)
+			qd := len(h.refresh)
+			for i := 0; i < qd; i++ {
+				<-h.refresh
+			}
 			h.broadcast <- wsu
 			wsu.RefreshNeeded = false
 		case <-rt.C:

@@ -322,10 +322,9 @@ func cropManager() {
 			logger.Fatalf("failed to pull next autocrop item: %q", err)
 		}
 
-		logger.Infof("job id %d: building video filter graph", tj.Id)
-		updateJobStatus(tj.Id, BuildVideoFilter)
-
 		cg.Go(func() error {
+			logger.Infof("job id %d: building video filter graph", tj.Id)
+			updateJobStatus(tj.Id, BuildVideoFilter)
 			err := updateSourceMetadata(&tj)
 			if errors.Is(err, context.Canceled) {
 				return err

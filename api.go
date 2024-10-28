@@ -165,7 +165,7 @@ func newtranscode(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if len(j.Codec) == 0 {
-		j.Codec = "hevc_nvenc"
+		j.Codec = "libx265"
 	}
 
 	i, err := stmt.Exec(j.Source, j.Destination, j.Crf, s, j.Autocrop, j.Video_filters, j.Audio_filters, j.Codec)
