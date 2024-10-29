@@ -93,13 +93,16 @@ const html_template = `
 
         ws.onmessage = function(event) {
 					var statusMessage = JSON.parse(event.data);
-					console.log("got message:", statusMessage);
 
 						if (statusMessage.RefreshNeeded == true) {
+							ws.close();
 							location.reload();
 						}
+
 						{{range .ActiveJobs}}
-						document.getElementById("log-{{.Id}}").innerText = statusMessage.LogMessages[{{.Id}}]
+						if (statusMessage.LogMessages[{{.Id}}]) {
+							document.getElementById("log-{{.Id}}").innerText = statusMessage.LogMessages[{{.Id}}]
+						}
 						{{end}}
 
         };
