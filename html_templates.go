@@ -101,7 +101,7 @@ const html_template = `
 
 						{{range .ActiveJobs}}
 						if (statusMessage.LogMessages[{{.Id}}]) {
-							document.getElementById("log-{{.Id}}").innerText = statusMessage.LogMessages[{{.Id}}]
+							document.getElementById("log-{{.Id}}").innerText = statusMessage.LogMessages[{{.Id}}];
 						}
 						{{end}}
 
