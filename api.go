@@ -144,12 +144,7 @@ func queryActive() ([]TranscodeJob, error) {
 
 func display_rows(w http.ResponseWriter, req *http.Request) {
 	page := PageData{}
-	tx, err := db.Begin()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer tx.Commit()
+	var err error
 
 	page.QueuedJobs, err = queryQueued()
 	if err != nil {
