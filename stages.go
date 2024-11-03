@@ -179,7 +179,7 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 
 	fc, err := probeMetadata(s)
 	if err != nil {
-		return fmt.Errorf("countFrames returned: %q", err)
+		return fmt.Errorf("metadata probe returned: %q", err)
 	}
 
 	_, err = tx.Exec("UPDATE active_jobs SET source_codec = ? WHERE id = ?", fc.Codec, tj.Id)

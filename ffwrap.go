@@ -129,7 +129,13 @@ func probeMetadata(s string) (MediaMetadata, error) {
 	}
 
 	var ffp FfprobeOutput
-	json.Unmarshal(o, &ffp)
+	if err := json.Unmarshal(o, &ffp); err != nil {
+		return MediaMetadata{}, err
+	}
+
+	if len(ffp.Streams) != 1 {
+		return MediaMetadata{}, errors.New("wrong number of streams in ffprobe output")
+	}
 
 	return MediaMetadata{
 		Duration: ffp.Format.Duration,

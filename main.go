@@ -254,7 +254,7 @@ func mainLoop() {
 		logger.Infof("job id %d: determining source metadata", tj.Id)
 		if err := updateSourceMetadata(&tj); err != nil {
 			if errors.Is(err, context.Canceled) {
-				logger.Errorf("service shutting down: %v", err)
+				logger.Warningf("service shutting down: %v", err)
 				return
 			}
 			logger.Errorf("ffprobe failed: %v", err)
