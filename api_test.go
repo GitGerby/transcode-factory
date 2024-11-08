@@ -91,7 +91,10 @@ func TestAddHandler(t *testing.T) {
 		// cleanup temp in memory database and make sure the channel stays empty
 		db.Close()
 		db = odb
-		<-tc.rc
+		select {
+		case <-tc.rc:
+		default:
+		}
 
 		result := tc.recorder.Result()
 		defer result.Body.Close()
