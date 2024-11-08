@@ -88,15 +88,15 @@ func TestAddHandler(t *testing.T) {
 
 		addHandler(tc.recorder, tc.request, tc.rc)
 
-		// cleanup temp in memory database
+		// cleanup temp in memory database and make sure the channel stays empty
 		db.Close()
 		db = odb
+		<-tc.rc
 
 		result := tc.recorder.Result()
 		defer result.Body.Close()
 		if result.StatusCode != tc.respCode {
 			t.Errorf("%q: wrong HTTP response got: %v, want %v", tc.desc, result.StatusCode, tc.respCode)
-			<-tc.rc
 		}
 	}
 }
