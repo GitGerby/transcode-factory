@@ -155,7 +155,6 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 		logger.Errorf("failed to retrieve active jobs: %v", err)
 	}
 
-	// page.QueueLength = len(page.TranscodeQueue)
 	t, err := template.New("results").Parse(html_template)
 	if err != nil {
 		logger.Errorf("fatal error parsing template: %#v", err)
@@ -167,12 +166,7 @@ func display_rows(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func newtranscode(w http.ResponseWriter, req *http.Request) {
-	db, err := sql.Open("sqlite", databasefile)
-	if err != nil {
-		fmt.Fprintf(w, "failed to connect to db: %v", err)
-	}
-	defer db.Close()
+func addHandler(w http.ResponseWriter, req *http.Request, refreshChannel chan<- bool) {
 	tx, err := db.Begin()
 	if err != nil {
 		logger.Errorf("failed to begin transaction: %q", err)
@@ -211,14 +205,14 @@ func newtranscode(w http.ResponseWriter, req *http.Request) {
 	i, err := stmt.Exec(j.Source, j.Destination, j.Crf, s, j.Autocrop, j.Video_filters, j.Audio_filters, j.Codec)
 	if err != nil {
 		tx.Rollback()
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	id, _ := i.LastInsertId()
 	tx.Commit()
 	logger.Infof("Added job id %d for %#v", id, j)
 	fmt.Fprintf(w, `{"id": %d}`, id)
-	wsHub.refresh <- true
+	refreshChannel <- true
 }
 
 func logStream(w http.ResponseWriter, r *http.Request) {

@@ -122,7 +122,7 @@ func (p *program) Run() {
 		logger.Fatalf("failed to connect to db: %v", err)
 	}
 	defer db.Close()
-	if err := initdb(); err != nil {
+	if err := initDbTables(db); err != nil {
 		logger.Fatalf("failed to prepare database: %v", err)
 	}
 
@@ -171,7 +171,7 @@ func (p *program) Stop(s service.Service) error {
 	return nil
 }
 
-func initdb() error {
+func initDbTables(db *sql.DB) error {
 	if _, err := db.Exec(`
   CREATE TABLE IF NOT EXISTS transcode_queue (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -298,7 +298,9 @@ func mainLoop() {
 
 func launchApi() {
 	http.HandleFunc("/statusz", display_rows)
-	http.HandleFunc("/add", newtranscode)
+	http.HandleFunc("/add", func(w http.ResponseWriter, r *http.Request) {
+		addHandler(w, r, wsHub.refresh)
+	})
 	http.HandleFunc("/logstream", logStream)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/statusz", http.StatusFound)
