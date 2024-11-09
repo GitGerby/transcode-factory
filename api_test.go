@@ -110,9 +110,11 @@ func TestAddHandler(t *testing.T) {
 
 func TestQueryQueued(t *testing.T) {
 	odb := db
+	testChannel := make(chan bool, 128)
 	defer func() {
 		db.Close()
 		db = odb
+		close(testChannel)
 	}()
 	testCases := []struct {
 		desc          string
@@ -147,8 +149,6 @@ func TestQueryQueued(t *testing.T) {
 			},
 		},
 	}
-
-	testChannel := make(chan bool, 128)
 
 	for _, tc := range testCases {
 		db = createEmptyTestDb(t)
