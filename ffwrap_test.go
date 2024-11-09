@@ -141,7 +141,6 @@ func TestParseColorCoords265(t *testing.T) {
 }
 
 func TestLibx265HDR(t *testing.T) {
-	// Define the test cases using a struct with fields
 	testCases := []struct {
 		desc          string
 		colorMeta     colorInfo

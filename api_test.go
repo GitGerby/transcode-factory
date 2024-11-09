@@ -21,10 +21,12 @@ const (
 	nsrtsJson        = `{"source":"/path/to/source.mkv","destination":"/path/to/destination.mkv","autocrop":true,"crf":18,"codec":"libx265","video_filters":""}`
 )
 
+// createEmptyTestDb initializes an in-memory SQLite database for testing purposes.
+// It creates a new temporary memory database and ensures the necessary tables are initialized.
 func createEmptyTestDb(t *testing.T) *sql.DB {
 	t.Helper()
 	var err error
-	db, err := sql.Open("sqlite", inMemoryDatabase)
+	db, err := sql.Open("sqlite", inMemoryDatabase) // Opens an SQLite database in memory with specified pragmas.
 	if err != nil {
 		t.Fatalf("failed to open temp memory database: %v", err)
 	}
@@ -86,25 +88,27 @@ func TestAddHandler(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		// init temp in memory database
-		odb := db
-		db = createEmptyTestDb(t)
+		t.Run(tc.desc, func(t *testing.T) {
+			// init temp in memory database
+			odb := db
+			db = createEmptyTestDb(t)
 
-		addHandler(tc.recorder, tc.request, tc.rc)
+			addHandler(tc.recorder, tc.request, tc.rc)
 
-		// cleanup temp in memory database and make sure the channel stays empty
-		db.Close()
-		db = odb
-		select {
-		case <-tc.rc:
-		default:
-		}
+			// cleanup temp in memory database and make sure the channel stays empty
+			db.Close()
+			db = odb
+			select {
+			case <-tc.rc:
+			default:
+			}
 
-		result := tc.recorder.Result()
-		defer result.Body.Close()
-		if result.StatusCode != tc.respCode {
-			t.Errorf("%q: wrong HTTP response got: %v, want %v", tc.desc, result.StatusCode, tc.respCode)
-		}
+			result := tc.recorder.Result()
+			defer result.Body.Close()
+			if result.StatusCode != tc.respCode {
+				t.Errorf("%q: wrong HTTP response got: %v, want %v", tc.desc, result.StatusCode, tc.respCode)
+			}
+		})
 	}
 }
 
@@ -151,25 +155,27 @@ func TestQueryQueued(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		db = createEmptyTestDb(t)
-		if len(tc.testValues) > 0 {
-			for _, v := range tc.testValues {
-				jsonInput, err := json.Marshal(v.JobDefinition)
-				if err != nil {
-					t.Errorf("%q: failed to setup test case with value: %v", tc.desc, v)
+		t.Run(tc.desc, func(t *testing.T) {
+			db = createEmptyTestDb(t)
+			if len(tc.testValues) > 0 {
+				for _, v := range tc.testValues {
+					jsonInput, err := json.Marshal(v.JobDefinition)
+					if err != nil {
+						t.Errorf("%q: failed to setup test case with value: %v", tc.desc, v)
+					}
+					req := httptest.NewRequest("POST", "/add", bytes.NewReader(jsonInput))
+					addHandler(httptest.NewRecorder(), req, testChannel)
 				}
-				req := httptest.NewRequest("POST", "/add", bytes.NewReader(jsonInput))
-				addHandler(httptest.NewRecorder(), req, testChannel)
 			}
-		}
-		qq, err := queryQueued()
-		if err != tc.expectedError {
-			t.Errorf("%q: unexpected err value got: %v, want: %v", tc.desc, err, tc.expectedError)
-		}
+			qq, err := queryQueued()
+			if err != tc.expectedError {
+				t.Errorf("%q: unexpected err value got: %v, want: %v", tc.desc, err, tc.expectedError)
+			}
 
-		diff := cmp.Diff(tc.expectedQueue, qq)
-		if diff != "" {
-			t.Errorf("%q: job definition diff: %v", tc.desc, diff)
-		}
+			diff := cmp.Diff(tc.expectedQueue, qq)
+			if diff != "" {
+				t.Errorf("%q: job definition diff: %v", tc.desc, diff)
+			}
+		})
 	}
 }

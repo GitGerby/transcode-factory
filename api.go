@@ -46,6 +46,8 @@ type PageQueueInfo struct {
 	CropState     string
 }
 
+// queryQueued fetches all jobs that are currently queued (not in active_jobs) from the database.
+// The function returns a slice of PageQueueInfo objects representing the queued jobs if successful, or an error if something goes wrong.
 func queryQueued() ([]PageQueueInfo, error) {
 	tx, err := db.Begin()
 	if err != nil {
@@ -94,6 +96,8 @@ func queryQueued() ([]PageQueueInfo, error) {
 	return queuedJobs, nil
 }
 
+// queryActive fetches all active transcode jobs from the database.
+// The function returns a slice of TranscodeJob objects representing the active jobs if successful, or an error if something goes wrong.
 func queryActive() ([]TranscodeJob, error) {
 	var srtJsonBlob []byte
 	tx, err := db.Begin()
@@ -142,7 +146,7 @@ func queryActive() ([]TranscodeJob, error) {
 	return activeJobs, nil
 }
 
-func display_rows(w http.ResponseWriter, req *http.Request) {
+func statuszHandler(w http.ResponseWriter, req *http.Request) {
 	page := PageData{}
 	var err error
 
@@ -215,6 +219,9 @@ func addHandler(w http.ResponseWriter, req *http.Request, refreshChannel chan<- 
 	refreshChannel <- true
 }
 
+// logStream upgrades an HTTP connection to a WebSocket and integrates it into the websocket hub.
+// It creates a new Client instance with the upgraded connection and registers it with the websocket hub.
+// The readPump and writePump goroutines are started for handling incoming and outgoing messages respectively.
 func logStream(w http.ResponseWriter, r *http.Request) {
 	wsconn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -230,5 +237,4 @@ func logStream(w http.ResponseWriter, r *http.Request) {
 	hubClient.hub.register <- hubClient
 	go hubClient.writePump()
 	go hubClient.readPump()
-
 }
