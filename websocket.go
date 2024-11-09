@@ -202,7 +202,6 @@ func (h *Hub) feedSockets() {
 			if len(wsu.LogMessages) > 0 {
 				h.broadcast <- wsu
 			}
-			wsu.LogMessages = make(map[int]string) // Clear out log messages
 		}
 	}
 }
