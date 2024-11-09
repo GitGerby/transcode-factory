@@ -21,7 +21,7 @@ const (
 	nsrtsJson        = `{"source":"/path/to/source.mkv","destination":"/path/to/destination.mkv","autocrop":true,"crf":18,"codec":"libx265","video_filters":""}`
 )
 
-func ephemeralDbTest(t *testing.T) *sql.DB {
+func createEmptyTestDb(t *testing.T) *sql.DB {
 	t.Helper()
 	var err error
 	db, err := sql.Open("sqlite", inMemoryDatabase)
@@ -88,7 +88,7 @@ func TestAddHandler(t *testing.T) {
 	for _, tc := range testCases {
 		// init temp in memory database
 		odb := db
-		db = ephemeralDbTest(t)
+		db = createEmptyTestDb(t)
 
 		addHandler(tc.recorder, tc.request, tc.rc)
 
@@ -151,7 +151,7 @@ func TestQueryQueued(t *testing.T) {
 	testChannel := make(chan bool, 128)
 
 	for _, tc := range testCases {
-		db = ephemeralDbTest(t)
+		db = createEmptyTestDb(t)
 		if len(tc.testValues) > 0 {
 			for _, v := range tc.testValues {
 				jsonInput, err := json.Marshal(v.JobDefinition)
