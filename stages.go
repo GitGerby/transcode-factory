@@ -201,32 +201,35 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 // compileVF builds the appropriate video filter string based on the provided filter string
 // and the autocrop setting if set to true.
 func compileVF(tj *TranscodeJob) error {
-	var c string
+	var cropFilter string
 	if tj.JobDefinition.Autocrop {
 		var err error
-		c, err = detectCrop(tj.JobDefinition.Source)
+		cropFilter, err = detectCrop(tj.JobDefinition.Source)
 		if err != nil {
 			return err
 		}
 	}
 
 	// parse the crop filter
-	s := strings.Split(c, ":")
-	sw, err := strconv.Atoi(s[0])
-	if err != nil {
-		sw = 0
+	cropSlice := strings.Split(cropFilter, ":")
+	if len(cropSlice) < 2 {
+		return fmt.Errorf("splitting crop filter %q for parsing failed", cropFilter)
 	}
-	sh, err := strconv.Atoi(s[1])
+	cropWidth, err := strconv.Atoi(cropSlice[0])
 	if err != nil {
-		sh = 0
+		cropWidth = 0
+	}
+	cropHeight, err := strconv.Atoi(cropSlice[1])
+	if err != nil {
+		cropHeight = 0
 	}
 
 	// only add the crop filter if it's actually going to reduce the number of pixels running through the pipeline.
-	if sw != tj.SourceMeta.Width || sh != tj.SourceMeta.Height {
-		if tj.JobDefinition.Video_filters != "" && c != "" {
-			tj.JobDefinition.Video_filters = strings.Join([]string{c, tj.JobDefinition.Video_filters}, ",")
-		} else if c != "" {
-			tj.JobDefinition.Video_filters = c
+	if cropWidth != tj.SourceMeta.Width || cropHeight != tj.SourceMeta.Height {
+		if tj.JobDefinition.Video_filters != "" && cropFilter != "" {
+			tj.JobDefinition.Video_filters = strings.Join([]string{cropFilter, tj.JobDefinition.Video_filters}, ",")
+		} else if cropFilter != "" {
+			tj.JobDefinition.Video_filters = cropFilter
 		}
 	}
 
