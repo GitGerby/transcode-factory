@@ -288,11 +288,6 @@ func evalLumCoordinate265(colorFrac string) (int, error) {
 }
 
 func parseColorCoordsAv1(csi colorSideInfo) (colorCoords, error) {
-	/*
-		if strings.EqualFold(csi.Side_data_type, side_data_type_mastering) {
-			return colorCoords{}, fmt.Errorf("got side data type: %v, can only parse from %s", csi.Side_data_type, side_data_type_mastering)
-		}
-	*/
 	rx, err := evalColorCoordinateAv1(csi.Red_x)
 	if err != nil {
 		return colorCoords{}, fmt.Errorf("failed to eval red x: %v", err)
