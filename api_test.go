@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 const (
@@ -100,6 +104,72 @@ func TestAddHandler(t *testing.T) {
 		defer result.Body.Close()
 		if result.StatusCode != tc.respCode {
 			t.Errorf("%q: wrong HTTP response got: %v, want %v", tc.desc, result.StatusCode, tc.respCode)
+		}
+	}
+}
+
+func TestQueryQueued(t *testing.T) {
+	odb := db
+	defer func() {
+		db.Close()
+		db = odb
+	}()
+	testCases := []struct {
+		desc          string
+		testValues    []TranscodeJob
+		expectedQueue []PageQueueInfo
+		expectedError error
+	}{
+		{desc: "empty queue", testValues: nil, expectedError: nil},
+		{
+			desc: "item in queue",
+			testValues: []TranscodeJob{{
+				Id: 1,
+				JobDefinition: TranscodeRequest{
+					Source:      "/path/to/source.mkv",
+					Destination: "/path/to/destination.mkv",
+					Crf:         18,
+					Autocrop:    true,
+					Codec:       "libx265",
+				},
+			}},
+			expectedQueue: []PageQueueInfo{
+				{
+					Id: 1,
+					JobDefinition: TranscodeRequest{
+						Source:      "/path/to/source.mkv",
+						Destination: "/path/to/destination.mkv",
+						Crf:         18,
+						Codec:       "libx265",
+					},
+					CropState: "pending",
+				},
+			},
+		},
+	}
+
+	testChannel := make(chan bool, 128)
+
+	for _, tc := range testCases {
+		db = ephemeralDbTest(t)
+		if len(tc.testValues) > 0 {
+			for _, v := range tc.testValues {
+				jsonInput, err := json.Marshal(v.JobDefinition)
+				if err != nil {
+					t.Errorf("%q: failed to setup test case with value: %v", tc.desc, v)
+				}
+				req := httptest.NewRequest("POST", "/add", bytes.NewReader(jsonInput))
+				addHandler(httptest.NewRecorder(), req, testChannel)
+			}
+		}
+		qq, err := queryQueued()
+		if err != tc.expectedError {
+			t.Errorf("%q: unexpected err value got: %v, want: %v", tc.desc, err, tc.expectedError)
+		}
+
+		diff := cmp.Diff(tc.expectedQueue, qq)
+		if diff != "" {
+			t.Errorf("%q: job definition diff: %v", tc.desc, diff)
 		}
 	}
 }
