@@ -157,6 +157,7 @@ func TestQueryQueued(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			db = createEmptyTestDb(t)
+			defer db.Close()
 			if len(tc.testValues) > 0 {
 				for _, v := range tc.testValues {
 					jsonInput, err := json.Marshal(v.JobDefinition)
