@@ -234,6 +234,9 @@ func processLogRows(rows *sql.Rows) (map[int]string, error) {
 	return logMessages, nil
 }
 
+// tailLog reads the last line from a given file path. It opens the file, moves to the end, and then reads backwards until it finds a newline character or reaches the buffer size limit.
+// The function takes a single argument filePath of type string, which represents the path to the log file.
+// It returns a string containing the last line of the file and an error if any occurred during the process.
 func tailLog(filePath string) (string, error) {
 	file, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
 	if err != nil {

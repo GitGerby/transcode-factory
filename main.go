@@ -391,6 +391,10 @@ func copyManager() {
 	}
 }
 
+// dequeueCopy removes and returns the first TranscodeJob from the queueCopy list.
+// It uses a mutex (muCopy) to ensure that concurrent access to the shared resource (queueCopy) is synchronized,
+// preventing race conditions where multiple goroutines might attempt to modify or read the queue simultaneously.
+// This function locks the muCopy mutex before accessing and modifying the queueCopy list, ensuring thread-safe operations.
 func dequeueCopy() *TranscodeJob {
 	muCopy.Lock()
 	defer func() { muCopy.Unlock() }()
@@ -399,6 +403,9 @@ func dequeueCopy() *TranscodeJob {
 	return nextCopy
 }
 
+// enqueueCopy adds a new TranscodeJob to the queueCopy list and updates its status to JOB_PENDINGTRANSCODE.
+// It uses a mutex (muCopy) to ensure that concurrent access to the shared resource (queueCopy) is synchronized,
+// preventing race conditions where multiple goroutines might attempt to modify or read the queue simultaneously.
 func enqueueCopy(tj *TranscodeJob) {
 	muCopy.Lock()
 	defer func() { muCopy.Unlock() }()
