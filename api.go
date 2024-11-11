@@ -195,6 +195,12 @@ func addHandler(w http.ResponseWriter, req *http.Request, refreshChannel chan<- 
 		return
 	}
 
+	if j.Source == "" || j.Destination == "" {
+		tx.Rollback()
+		http.Error(w, "{error: source or destination cannot be empty}", http.StatusBadRequest)
+		return
+	}
+
 	s, err := json.Marshal(j.Srt_files)
 	if err != nil {
 		tx.Rollback()

@@ -13,12 +13,14 @@ import (
 )
 
 const (
-	inMemoryDatabase = ":memory:?_pragma=busy_timeout(5000)"
-	goodJson         = `{"source":"/path/to/source.mkv","destination":"/path/to/destination.mkv","autocrop":true,"crf":18,"srt_files":["/path/to/srt/1.srt","/path/to/srt/2.srt"],"codec":"libx265","video_filters":""}`
-	noCodecJson      = `{"source":"/path/to/source.mkv","destination":"/path/to/destination.mkv","autocrop":true,"crf":18,"srt_files":["/path/to/srt/1.srt","/path/to/srt/2.srt"],"video_filters":""}`
-	twoObjectsJson   = `[{"source":"/path/to/source.mkv","destination":"/path/to/destination.mkv","autocrop":true,"crf":18,"srt_files":["/path/to/srt/1.srt","/path/to/srt/2.srt"],"codec":"libx265","video_filters":""},{"source":"/path/to/source.mkv","destination":"/path/to/destination.mkv","autocrop":true,"crf":18,"srt_files":["/path/to/srt/1.srt","/path/to/srt/2.srt"],"codec":"libx265","video_filters":""}]`
-	badCrfJson       = `{"source":"/path/to/source.mkv","destination":"/path/to/destination.mkv","autocrop":true,"crf":"a","srt_files":["/path/to/srt/1.srt","/path/to/srt/2.srt"],"codec":"libx265","video_filters":""}`
-	nsrtsJson        = `{"source":"/path/to/source.mkv","destination":"/path/to/destination.mkv","autocrop":true,"crf":18,"codec":"libx265","video_filters":""}`
+	inMemoryDatabase  = ":memory:?_pragma=busy_timeout(5000)"
+	goodJson          = `{"source":"/path/to/source.mkv","destination":"/path/to/destination.mkv","autocrop":true,"crf":18,"srt_files":["/path/to/srt/1.srt","/path/to/srt/2.srt"],"codec":"libx265","video_filters":""}`
+	noCodecJson       = `{"source":"/path/to/source.mkv","destination":"/path/to/destination.mkv","autocrop":true,"crf":18,"srt_files":["/path/to/srt/1.srt","/path/to/srt/2.srt"],"video_filters":""}`
+	twoObjectsJson    = `[{"source":"/path/to/source.mkv","destination":"/path/to/destination.mkv","autocrop":true,"crf":18,"srt_files":["/path/to/srt/1.srt","/path/to/srt/2.srt"],"codec":"libx265","video_filters":""},{"source":"/path/to/source.mkv","destination":"/path/to/destination.mkv","autocrop":true,"crf":18,"srt_files":["/path/to/srt/1.srt","/path/to/srt/2.srt"],"codec":"libx265","video_filters":""}]`
+	badCrfJson        = `{"source":"/path/to/source.mkv","destination":"/path/to/destination.mkv","autocrop":true,"crf":"a","srt_files":["/path/to/srt/1.srt","/path/to/srt/2.srt"],"codec":"libx265","video_filters":""}`
+	nsrtsJson         = `{"source":"/path/to/source.mkv","destination":"/path/to/destination.mkv","autocrop":true,"crf":18,"codec":"libx265","video_filters":""}`
+	noSourceJson      = `{"destination":"/path/to/destination.mkv","autocrop":true,"crf":18,"srt_files":["/path/to/srt/1.srt","/path/to/srt/2.srt"],"codec":"libx265","video_filters":""}`
+	noDestinationJson = `{"source":"/path/to/source.mkv","autocrop":true,"crf":18,"srt_files":["/path/to/srt/1.srt","/path/to/srt/2.srt"],"codec":"libx265","video_filters":""}`
 )
 
 // createEmptyTestDb initializes an in-memory SQLite database for testing purposes.
@@ -83,6 +85,20 @@ func TestAddHandler(t *testing.T) {
 			request:  httptest.NewRequest("POST", "/add", strings.NewReader(noCodecJson)),
 			recorder: httptest.NewRecorder(),
 			respCode: http.StatusOK,
+			rc:       testChannel,
+		},
+		{
+			desc:     "no source",
+			request:  httptest.NewRequest("POST", "/add", strings.NewReader(noSourceJson)),
+			recorder: httptest.NewRecorder(),
+			respCode: http.StatusBadRequest,
+			rc:       testChannel,
+		},
+		{
+			desc:     "no destination",
+			request:  httptest.NewRequest("POST", "/add", strings.NewReader(noDestinationJson)),
+			recorder: httptest.NewRecorder(),
+			respCode: http.StatusBadRequest,
 			rc:       testChannel,
 		},
 	}
