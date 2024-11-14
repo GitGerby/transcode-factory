@@ -252,7 +252,7 @@ func bulkAddHandler(w http.ResponseWriter, req *http.Request, refreshChannel cha
 		return
 	}
 
-	insertedJobs := make(map[int]TranscodeRequest)
+	insertedJobs := make(map[int64]TranscodeRequest)
 
 	for _, j := range jobs {
 		if j.Source == "" || j.Destination == "" {
@@ -280,7 +280,7 @@ func bulkAddHandler(w http.ResponseWriter, req *http.Request, refreshChannel cha
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		insertedJobs[int(id)] = j
+		insertedJobs[id] = j
 		logger.Infof("Added job id %d for %#v", id, j)
 	}
 	tx.Commit()
@@ -289,7 +289,7 @@ func bulkAddHandler(w http.ResponseWriter, req *http.Request, refreshChannel cha
 		logger.Errorf("failed to marshal json response: %v", err)
 		return
 	}
-	fmt.Fprintf(w, string(jsonResp))
+	fmt.Fprint(w, string(jsonResp))
 	refreshChannel <- true
 }
 
