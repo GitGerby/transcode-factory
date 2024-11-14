@@ -301,6 +301,9 @@ func launchApi() {
 	http.HandleFunc("/add", func(w http.ResponseWriter, r *http.Request) {
 		addHandler(w, r, wsHub.refresh)
 	})
+	http.HandleFunc("/bulkadd", func(w http.ResponseWriter, r *http.Request) {
+		bulkAddHandler(w, r, wsHub.refresh)
+	})
 	http.HandleFunc("/logstream", logStream)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/statusz", http.StatusFound)

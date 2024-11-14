@@ -226,6 +226,73 @@ func addHandler(w http.ResponseWriter, req *http.Request, refreshChannel chan<- 
 	refreshChannel <- true
 }
 
+func bulkAddHandler(w http.ResponseWriter, req *http.Request, refreshChannel chan<- bool) {
+	var jobs []TranscodeRequest
+	err := json.NewDecoder(req.Body).Decode(&jobs)
+	if err != nil {
+		logger.Errorf("failed to decode request: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		logger.Errorf("failed to begin transaction: %q", err)
+		return
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`
+	  INSERT INTO transcode_queue(source, destination, crf, srt_files, autocrop, video_filters, audio_filters, codec)
+	  VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+	  `)
+	if err != nil {
+		logger.Errorf("failed to prepare sql: %v", err)
+		fmt.Fprintf(w, `{"error": "%v"}`, err)
+		return
+	}
+
+	insertedJobs := make(map[int]TranscodeRequest)
+
+	for _, j := range jobs {
+		if j.Source == "" || j.Destination == "" {
+			http.Error(w, `{"error": "source or destination cannot be empty"}`, http.StatusBadRequest)
+			return
+		}
+
+		s, err := json.Marshal(j.Srt_files)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if len(j.Codec) == 0 {
+			j.Codec = "libx265"
+		}
+
+		ins, err := stmt.Exec(j.Source, j.Destination, j.Crf, s, j.Autocrop, j.Video_filters, j.Audio_filters, j.Codec)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		id, err := ins.LastInsertId()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		insertedJobs[int(id)] = j
+		logger.Infof("Added job id %d for %#v", id, j)
+	}
+	tx.Commit()
+	jsonResp, err := json.Marshal(insertedJobs)
+	if err != nil {
+		logger.Errorf("failed to marshal json response: %v", err)
+		return
+	}
+	fmt.Fprintf(w, string(jsonResp))
+	refreshChannel <- true
+}
+
 // logStream upgrades an HTTP connection to a WebSocket and integrates it into the websocket hub.
 // It creates a new Client instance with the upgraded connection and registers it with the websocket hub.
 // The readPump and writePump goroutines are started for handling incoming and outgoing messages respectively.
