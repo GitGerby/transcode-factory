@@ -146,6 +146,11 @@ func queryActive() ([]TranscodeJob, error) {
 	return activeJobs, nil
 }
 
+// statuszHandler handles HTTP requests for the status page of the application.
+// It retrieves data about queued and active jobs from the database,
+// parses an HTML template to generate a response, and writes it back to the client.
+// If any step fails (e.g., retrieving job data, parsing the template),
+// it logs the error with appropriate severity using the logger.
 func statuszHandler(w http.ResponseWriter, req *http.Request) {
 	page := PageData{}
 	var err error
@@ -165,12 +170,34 @@ func statuszHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if err := t.Execute(w, page); err != nil {
-		p, _ := json.Marshal(page)
-		logger.Errorf("template with data '%s' failed: %v,", p, err)
+		logger.Errorf("template with data '%#v' failed: %v,", page, err)
 	}
 }
 
 func addHandler(w http.ResponseWriter, req *http.Request, refreshChannel chan<- bool) {
+	var j TranscodeRequest
+	err := json.NewDecoder(req.Body).Decode(&j)
+	if err != nil {
+		logger.Errorf("failed to decode request: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if j.Source == "" || j.Destination == "" {
+		http.Error(w, "{error: source or destination cannot be empty}", http.StatusBadRequest)
+		return
+	}
+
+	s, err := json.Marshal(j.Srt_files)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if len(j.Codec) == 0 {
+		j.Codec = "libx265"
+	}
+
 	tx, err := db.Begin()
 	if err != nil {
 		logger.Errorf("failed to begin transaction: %q", err)
@@ -184,32 +211,6 @@ func addHandler(w http.ResponseWriter, req *http.Request, refreshChannel chan<- 
 	if err != nil {
 		tx.Rollback()
 		fmt.Fprintf(w, "failed to prepare sql: %v", err)
-	}
-
-	var j TranscodeRequest
-	err = json.NewDecoder(req.Body).Decode(&j)
-	if err != nil {
-		tx.Rollback()
-		logger.Errorf("failed to decode request: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if j.Source == "" || j.Destination == "" {
-		tx.Rollback()
-		http.Error(w, "{error: source or destination cannot be empty}", http.StatusBadRequest)
-		return
-	}
-
-	s, err := json.Marshal(j.Srt_files)
-	if err != nil {
-		tx.Rollback()
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if len(j.Codec) == 0 {
-		j.Codec = "libx265"
 	}
 
 	i, err := stmt.Exec(j.Source, j.Destination, j.Crf, s, j.Autocrop, j.Video_filters, j.Audio_filters, j.Codec)

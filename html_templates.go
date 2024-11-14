@@ -97,13 +97,11 @@ const html_template = `
 							ws.close();
 							location.reload();
 						}
-
 						{{range .ActiveJobs}}
 						if (statusMessage.LogMessages[{{.Id}}]) {
 							document.getElementById("log-{{.Id}}").innerText = statusMessage.LogMessages[{{.Id}}];
 						}
 						{{end}}
-
         };
 
         ws.onerror = function(err) {
