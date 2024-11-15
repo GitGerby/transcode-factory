@@ -287,6 +287,8 @@ func tailLog(filePath string) (string, error) {
 			return "", err
 		}
 	}
-	logger.Infof("Last line: %s", string(lastLine))
+	if d := os.Getenv("TF_DEBUG_LOG"); d != "" {
+		logger.Infof("Last line: %s", string(lastLine))
+	}
 	return strings.TrimSpace(string(lastLine)), nil
 }
