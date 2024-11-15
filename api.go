@@ -270,6 +270,10 @@ func bulkAddHandler(w http.ResponseWriter, req *http.Request, refreshChannel cha
 			j.Codec = "libx265"
 		}
 
+		if j.Crf == 0 && j.Codec != "copy" {
+			j.Crf = 17
+		}
+
 		ins, err := stmt.Exec(j.Source, j.Destination, j.Crf, s, j.Autocrop, j.Video_filters, j.Audio_filters, j.Codec)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
