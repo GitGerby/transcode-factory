@@ -113,24 +113,21 @@ func detectCrop(inputFile string) (string, error) {
 	return string(m[len(m)-1][2]), nil
 }
 
-func probeMetadata(s string) (MediaMetadata, error) {
+func probeMetadata(source string) (MediaMetadata, error) {
 	args := []string{
 		"-threads", "32", "-v", "error", "-select_streams", "v:0", "-show_format", "-show_entries",
-		"stream=codec_name,width,height,", "-print_format", "json", "-sexagesimal", s,
+		"stream=codec_name,width,height,", "-print_format", "json", "-sexagesimal", source,
 	}
 	logger.Infof("calling ffprobe with: %#v", args)
 	cmd := exec.CommandContext(ctx, ffprobebinary, args...)
-	o, err := cmd.CombinedOutput()
-	if err != nil {
-		return MediaMetadata{}, fmt.Errorf("%q failed retrieve metadata: %v", s, err)
-	}
-	if cmd.ProcessState.ExitCode() != 0 {
-		return MediaMetadata{}, fmt.Errorf("%q ffprobe exited with nonzero exit code: %q", s, cmd.ProcessState.ExitCode())
+	sto, err := cmd.Output()
+	if err != nil && cmd.ProcessState.ExitCode() != 0 {
+		return MediaMetadata{}, fmt.Errorf("%q ffprobe unexpect output: %v or exit code: %q", source, err, cmd.ProcessState.ExitCode())
 	}
 
 	var ffp FfprobeOutput
-	if err := json.Unmarshal(o, &ffp); err != nil {
-		return MediaMetadata{}, err
+	if err := json.Unmarshal(sto, &ffp); err != nil {
+		return MediaMetadata{}, fmt.Errorf("unmarshall ffprobe data %#v: %w", sto, err)
 	}
 
 	if len(ffp.Streams) != 1 {
@@ -220,14 +217,14 @@ func parseColorInfo(inputFile string) (colorInfo, error) {
 	}
 	logger.Infof("parsing color info, calling ffprobe with args: %#v", args)
 	cmd := exec.CommandContext(ctx, ffprobebinary, args...)
-	o, err := cmd.CombinedOutput()
-	if err != nil || cmd.ProcessState.ExitCode() != 0 {
+	o, err := cmd.Output()
+	if err != nil && cmd.ProcessState.ExitCode() != 0 {
 		return colorInfo{}, fmt.Errorf("failed to extract color information err: %v output: %s exit code: %d", err, o, cmd.ProcessState.ExitCode())
 	}
 
 	var ci colorInfoWrapper
 	if err := json.Unmarshal(o, &ci); err != nil {
-		return colorInfo{}, fmt.Errorf("failed to unmarshal color info from ffprobe: %v", err)
+		return colorInfo{}, fmt.Errorf("failed to unmarshal color info %q from ffprobe: %w", o, err)
 	}
 
 	return ci.Frames[0], nil
