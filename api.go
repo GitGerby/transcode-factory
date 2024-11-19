@@ -174,6 +174,10 @@ func statuszHandler(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// addHandler handles incoming HTTP requests to add a new transcode job to the queue.
+// It decodes the JSON request body into a TranscodeRequest struct, validates the required fields,
+// prepares and executes an SQL statement to insert the job into the database, and sends a response with the job ID.
+// If any error occurs during these steps, it logs the error or responds with an HTTP error status code.
 func addHandler(w http.ResponseWriter, req *http.Request, refreshChannel chan<- bool) {
 	var j TranscodeRequest
 	err := json.NewDecoder(req.Body).Decode(&j)
@@ -226,6 +230,11 @@ func addHandler(w http.ResponseWriter, req *http.Request, refreshChannel chan<- 
 	refreshChannel <- true
 }
 
+// bulkAddHandler handles incoming HTTP requests to add multiple new transcode jobs to the queue in bulk.
+// It decodes the JSON request body into a slice of TranscodeRequest structs, validates each job's required fields,
+// prepares and executes an SQL statement to insert each job into the database within a transaction. If all jobs are successfully inserted,
+// it commits the transaction and responds with a map of the inserted jobs in JSON format along with their IDs.
+// If any error occurs during these steps, it rolls back the transaction, logs the error, or responds with an HTTP error status code.
 func bulkAddHandler(w http.ResponseWriter, req *http.Request, refreshChannel chan<- bool) {
 	var jobs []TranscodeRequest
 	err := json.NewDecoder(req.Body).Decode(&jobs)

@@ -69,7 +69,6 @@ type FfprobeOutput struct {
 type FfprobeStreams struct {
 	Codec      string `json:"codec_name"`
 	Codec_type string `json:"codec_type"`
-	Frames     string `json:"nb_read_frames"`
 	Width      int    `json:"width"`
 	Height     int    `json:"height"`
 }
@@ -90,6 +89,9 @@ const (
 	side_data_type_light_level = "Content light level metadata"
 )
 
+// detectCrop uses the FFmpeg tool to automatically detect and return the crop filter string for an input video file.
+// It constructs a command with arguments suitable for the FFmpeg cropdetect filter, runs the command, and processes its output
+// to extract and return the detected crop parameters as a string. If any error occurs during this process, it returns an error message.
 func detectCrop(inputFile string) (string, error) {
 	args := append([]string{"-hide_banner"}, ffcommon...)
 
@@ -113,6 +115,10 @@ func detectCrop(inputFile string) (string, error) {
 	return string(m[len(m)-1][2]), nil
 }
 
+// probeMetadata uses the FFprobe tool to retrieve metadata about an input video file.
+// It constructs a command with arguments suitable for retrieving stream information and runs it using FFprobe.
+// The output is then parsed as JSON and converted into a MediaMetadata struct, which includes details such as codec name, width, height, duration.
+// If any error occurs during the process, it returns an appropriate error message along with zero values in the MediaMetadata structure.
 func probeMetadata(source string) (MediaMetadata, error) {
 	args := []string{
 		"-threads", "32", "-v", "error", "-select_streams", "v:0", "-show_format", "-show_entries",
@@ -142,6 +148,10 @@ func probeMetadata(source string) (MediaMetadata, error) {
 	}, nil
 }
 
+// ffmpegTranscode transcodes media files using FFmpeg based on the provided TranscodeJob configuration.
+// It constructs and executes an FFmpeg command with various options to handle video, audio, subtitles, and other metadata from the source file.
+// The function supports copying streams where specified ('copy' codec), applying video filters if defined, and handling additional subtitle files specified in srt_files.
+// It captures stderr output for logging purposes and returns the FFmpeg command arguments upon successful completion or an error otherwise.
 func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	args := append(ffquiet, ffcommon...)
 
@@ -202,6 +212,9 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	return args, nil
 }
 
+// parseColorInfo extracts detailed color information about the video stream of an input file using ffprobe.
+// It constructs and executes a command to extract specific metadata related to color spaces, primary colors, transfer characteristics, pixel formats, and other frame details.
+// The function returns the parsed color information or an error if extraction fails.
 func parseColorInfo(inputFile string) (colorInfo, error) {
 	args := []string{
 		"-hide_banner",
@@ -230,6 +243,10 @@ func parseColorInfo(inputFile string) (colorInfo, error) {
 	return ci.Frames[0], nil
 }
 
+// evalColorCoordinateAv1 evaluates the color coordinate from a fraction string representation.
+// It splits the input string by the '/' character to separate the numerator and denominator, converts them to float64 values,
+// and returns their division as a float64 representing the color coordinate. If the input string is invalid or there's an error during conversion,
+// it returns an error.
 func evalColorCoordinateAv1(colorFrac string) (float64, error) {
 	splits := strings.Split(colorFrac, "/")
 	if len(splits) != 2 {
@@ -248,6 +265,10 @@ func evalColorCoordinateAv1(colorFrac string) (float64, error) {
 	return n / d, nil
 }
 
+// evalColorCoordinate265 evaluates the color coordinate for libx265 from a fraction string representation.
+// It splits the input string by the '/' character to separate the numerator and denominator, converts them to integer values,
+// and returns their division multiplied by 50000 as an integer representing the color coordinate. If the input string is invalid or there's an error during conversion,
+// it returns an error.
 func evalColorCoordinate265(colorFrac string) (int, error) {
 	splits := strings.Split(colorFrac, "/")
 	if len(splits) != 2 {
@@ -266,6 +287,10 @@ func evalColorCoordinate265(colorFrac string) (int, error) {
 	return n * (50000 / d), nil
 }
 
+// evalLumCoordinate265 evaluates the luminance coordinate from a fraction string representation for use by libx265.
+// It splits the input string by the '/' character to separate the numerator and denominator, converts them to integer values,
+// and returns their division multiplied by 10000 as an integer representing the luminance coordinate. If the input string is invalid or there's an error during conversion,
+// it returns an error.
 func evalLumCoordinate265(colorFrac string) (int, error) {
 	splits := strings.Split(colorFrac, "/")
 	if len(splits) != 2 {
@@ -284,6 +309,8 @@ func evalLumCoordinate265(colorFrac string) (int, error) {
 	return n * (10000 / d), nil
 }
 
+// parseColorCoordsAv1 takese Color Side Info pulled through ffprobe and returns
+// color coordinatues usable by libsvtav1 or an error.
 func parseColorCoordsAv1(csi colorSideInfo) (colorCoords, error) {
 	rx, err := evalColorCoordinateAv1(csi.Red_x)
 	if err != nil {
@@ -334,6 +361,8 @@ func parseColorCoordsAv1(csi colorSideInfo) (colorCoords, error) {
 	return colorCoords{g + b + r + wp + lm}, nil
 }
 
+// parseColorCoordsAv1 takese Color Side Info pulled through ffprobe and returns
+// color coordinatues usable by libx265 or an error.
 func parseColorCoords265(csi colorSideInfo) (colorCoords, error) {
 	rx, err := evalColorCoordinate265(csi.Red_x)
 	if err != nil {
@@ -384,6 +413,9 @@ func parseColorCoords265(csi colorSideInfo) (colorCoords, error) {
 	return colorCoords{g + b + r + wp + lm}, nil
 }
 
+// buildCodec generates command line arguments for ffmpeg based on the specified codec type and CRF value, with optional color metadata.
+// It supports various codecs including libx265, libsvtav1, hevc_nvenc, and can handle specific configurations based on the provided CRF value and color metadata.
+// The function will always return a valid set of ffmpeg flags for a given codec, if an unrecognized codec is passed then a default libx265 arg slice will be built and returned.
 func buildCodec(codec string, crf int, colorMeta colorInfo) []string {
 	libx265 := []string{
 		"-c:v", "libx265",
@@ -485,6 +517,10 @@ func buildCodec(codec string, crf int, colorMeta colorInfo) []string {
 	}
 }
 
+// libx265HDR processes color metadata for use with the libx265 codec to enable High-Dynamic Range (HDR) settings.
+// It takes a `colorInfo` struct as input, which contains information about the color space, primaries, and transfer characteristics,
+// along with side data list containing mastering or light level data. The function returns the processed libx265 and x265params slices
+// that can be used to configure the encoding process for HDR support in the libx265 codec. If any error occurs during processing, it is returned.
 func libx265HDR(colorMeta colorInfo) (libx265, x265params []string, err error) {
 	if colorMeta.Color_space != "" {
 		libx265 = append([]string{"-colorspace", colorMeta.Color_space}, libx265...)
