@@ -239,7 +239,7 @@ func TestQueryQueued(t *testing.T) {
 	}{
 		{desc: "empty queue", testValues: nil, expectedError: nil},
 		{
-			desc: "item in queue",
+			desc: "autocrop item in queue",
 			testValues: []TranscodeJob{{
 				Id: 1,
 				JobDefinition: TranscodeRequest{
@@ -260,6 +260,31 @@ func TestQueryQueued(t *testing.T) {
 						Codec:       "libx265",
 					},
 					CropState: "pending",
+				},
+			},
+		},
+		{
+			desc: "non autocrop item in queue",
+			testValues: []TranscodeJob{{
+				Id: 1,
+				JobDefinition: TranscodeRequest{
+					Source:      "/path/to/source.mkv",
+					Destination: "/path/to/destination.mkv",
+					Crf:         18,
+					Autocrop:    false,
+					Codec:       "libx265",
+				},
+			}},
+			expectedQueue: []PageQueueInfo{
+				{
+					Id: 1,
+					JobDefinition: TranscodeRequest{
+						Source:      "/path/to/source.mkv",
+						Destination: "/path/to/destination.mkv",
+						Crf:         18,
+						Codec:       "libx265",
+					},
+					CropState: "disabled",
 				},
 			},
 		},

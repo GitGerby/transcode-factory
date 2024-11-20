@@ -68,7 +68,7 @@ func queryQueued() ([]PageQueueInfo, error) {
 			WHEN autocrop = 1 AND crop_complete = 1 THEN 'complete'
 			WHEN autocrop = 1 AND crop_complete = 0 THEN 'pending'
 			WHEN autocrop IS NULL THEN 'pending'
-			ELSE 'false'
+			ELSE 'disabled'
 		END AS autocrop,
 		srt_files 
   FROM transcode_queue
