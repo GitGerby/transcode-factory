@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -232,6 +233,16 @@ func initDbTables(db *sql.DB) error {
 }
 
 func mainLoop() {
+	tg := new(errgroup.Group)
+	el := os.Getenv("TF_TRANSCODELIMIT")
+	transcodeLimit, err := strconv.Atoi(el)
+	if err != nil {
+		logger.Warningf("TF_TRANSCODELIMIT not an int: %v", err)
+		tg.SetLimit(1)
+	} else {
+		tg.SetLimit(transcodeLimit)
+	}
+
 	for {
 		tj, err := pullNextTranscode()
 		if err == sql.ErrNoRows {
@@ -268,31 +279,33 @@ func mainLoop() {
 		logger.Infof("job id %d: beginning transcode", tj.Id)
 		updateJobStatus(tj.Id, JOB_TRANSCODING)
 
-		var args []string
 		switch tj.JobDefinition.Codec {
 		case "copy":
 			enqueueCopy(&tj)
 			continue
 		default:
-			args, err = transcodeMedia(&tj)
-		}
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				logger.Errorf("service shutting down: %v", err)
-				return
-			}
-			logger.Errorf("transcodeMedia() error: %q", err)
-			tj.State = JOB_FAILED
-			if err := finishJob(&tj, nil); err != nil {
-				logger.Fatalf("failed to cleanup job: %q", err)
-			}
+			tg.Go(func() error {
+				var args []string
+				args, err := transcodeMedia(&tj)
+				if err != nil {
+					if errors.Is(err, context.Canceled) {
+						logger.Errorf("service shutting down: %v", err)
+						return err
+					}
+					logger.Errorf("transcodeMedia() error: %q", err)
+					tj.State = JOB_FAILED
+					if err := finishJob(&tj, nil); err != nil {
+						logger.Fatalf("failed to cleanup job: %q", err)
+					}
+				}
+				updateJobStatus(tj.Id, JOB_SUCCESS)
+				tj.State = JOB_SUCCESS
+				finishJob(&tj, args)
+				logger.Infof("job id %d: complete", tj.Id)
+				return nil
+			})
 			continue
 		}
-
-		updateJobStatus(tj.Id, JOB_SUCCESS)
-		tj.State = JOB_SUCCESS
-		finishJob(&tj, args)
-		logger.Infof("job id %d: complete", tj.Id)
 	}
 }
 
