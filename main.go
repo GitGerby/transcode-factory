@@ -238,10 +238,9 @@ func mainLoop() {
 	transcodeLimit, err := strconv.Atoi(el)
 	if err != nil {
 		logger.Warningf("TF_TRANSCODELIMIT not an int: %v", err)
-		tg.SetLimit(1)
-	} else {
-		tg.SetLimit(transcodeLimit)
+		transcodeLimit = 1
 	}
+	tg.SetLimit(transcodeLimit)
 
 	for {
 		tj, err := pullNextTranscode()
