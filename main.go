@@ -275,15 +275,16 @@ func mainLoop() {
 			continue
 		}
 
-		logger.Infof("job id %d: beginning transcode", tj.Id)
-		updateJobStatus(tj.Id, JOB_TRANSCODING)
-
 		switch tj.JobDefinition.Codec {
 		case "copy":
 			enqueueCopy(&tj)
 			continue
 		default:
 			tg.Go(func() error {
+				// Mark job active
+				logger.Infof("job id %d: beginning transcode", tj.Id)
+				updateJobStatus(tj.Id, JOB_TRANSCODING)
+
 				var args []string
 				args, err := transcodeMedia(&tj)
 				if err != nil {
