@@ -158,6 +158,7 @@ func (h *Hub) run() {
 	}
 }
 
+// feedSockets collects and collates messages to be sent to websocket clients.
 func (h *Hub) feedSockets() {
 	pstmt, err := db.Prepare(`
 	SELECT id, logfile
@@ -206,6 +207,11 @@ func (h *Hub) feedSockets() {
 	}
 }
 
+// processLogRows processes log files from SQL rows containing job IDs and log file locations.
+// It reads each row to get the job ID and log file path, tails the log file to extract the last line,
+// and stores the message in a map indexed by the job ID. If any error occurs during this process,
+// it logs the error and continues processing the remaining rows. If there are no errors, it returns
+// the map of log messages indexed by job ID; otherwise, it returns an error if one occurred.
 func processLogRows(rows *sql.Rows) (map[int]string, error) {
 	var logMessages = make(map[int]string)
 	row := struct {
