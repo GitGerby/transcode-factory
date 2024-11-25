@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -313,6 +314,117 @@ func TestQueryQueued(t *testing.T) {
 			if diff != "" {
 				t.Errorf("%q: job definition diff: %v", tc.desc, diff)
 			}
+		})
+	}
+}
+
+func insertActiveJob(t *testing.T, jobNum int) {
+	t.Helper()
+	_, err := db.Exec(`
+		INSERT INTO transcode_queue(
+			source,
+			destination,
+			crf,
+			srt_files,
+			codec
+		)
+		VALUES(?, ?, ?, ?, ?)`,
+		fmt.Sprintf("/path/to/source%d.mkv", jobNum),
+		fmt.Sprintf("/path/to/destination%d.mkv", jobNum),
+		18,
+		fmt.Sprintf(`["srt_file%d"]`, jobNum),
+		"libx265",
+	)
+	if err != nil {
+		t.Errorf("failed inserting to queue: %v", err)
+	}
+
+	_, err = db.Exec(
+		`INSERT INTO source_metadata(
+			id,
+			codec,
+			duration
+		)
+		VALUES(?,?,?)`,
+		jobNum,
+		"h264",
+		"1",
+	)
+	if err != nil {
+		t.Errorf("failed to insert source_metadata: %v", err)
+	}
+
+	_, err = db.Exec(
+		`INSERT INTO active_jobs(
+			id,
+			job_state
+		)
+		VALUES(?, ?)`,
+		jobNum,
+		JOB_TRANSCODING,
+	)
+	if err != nil {
+		t.Errorf("failed to insert active job: %v", err)
+	}
+
+}
+
+func TestQueryActive(t *testing.T) {
+	odb := db
+	defer func() {
+		db = odb
+	}()
+	testCases := []struct {
+		desc          string
+		numActiveJobs int
+		expectedJobs  []TranscodeJob
+		expectedError bool
+	}{
+		{
+			desc:          "no jobs",
+			numActiveJobs: 0,
+		},
+		{
+			desc:          "one active job",
+			numActiveJobs: 1,
+			expectedJobs: []TranscodeJob{
+				{
+					Id: 1,
+					JobDefinition: TranscodeRequest{
+						Source:        "/path/to/source1.mkv",
+						Destination:   "/path/to/destination1.mkv",
+						Srt_files:     []string{"srt_file1"},
+						Crf:           18,
+						Codec:         "libx265",
+						Video_filters: "none",
+					},
+					SourceMeta: MediaMetadata{
+						Codec:    "h264",
+						Duration: "1",
+					},
+					State: JOB_TRANSCODING,
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+
+			db = createEmptyTestDb(t)
+			for i := 1; i <= tc.numActiveJobs; i++ {
+				insertActiveJob(t, i)
+			}
+
+			r, err := queryActive()
+			if (err != nil && !tc.expectedError) || (err == nil && tc.expectedError) {
+				t.Errorf("unexpected error state: %v", err)
+			}
+			diff := cmp.Diff(tc.expectedJobs, r)
+			if diff != "" {
+				t.Errorf("%s: diff from expected: %v", tc.desc, diff)
+			}
+			db.Close()
 		})
 	}
 }

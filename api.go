@@ -113,7 +113,7 @@ func queryActive() ([]TranscodeJob, error) {
 		transcode_queue.id,
 		source,
 		destination,
-		IFNULL(job_state,0),
+		IFNULL(job_state, 'unknown'),
 		IFNULL(video_filters, 'none'),
 		srt_files,
 		IIF(transcode_queue.codec = 'copy', 0, crf),

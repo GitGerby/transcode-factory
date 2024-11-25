@@ -180,25 +180,19 @@ func initDbTables(db *sql.DB) error {
     destination TEXT,
     crf INTEGER,
     srt_files BLOB,
-	codec TEXT,
+	  codec TEXT,
     video_filters TEXT,
     audio_filters TEXT,
     autocrop INTEGER,
-	crop_complete INTEGER DEFAULT 0
+		crop_complete INTEGER DEFAULT 0
   );
 
 	DROP TABLE IF EXISTS active_job;
   DROP TABLE IF EXISTS active_jobs;
   CREATE TABLE IF NOT EXISTS active_jobs (
-    ffmpeg_pid INTEGER,
-    job_state INTEGER,
-    vfilter TEXT,
-    afilter TEXT,
-    source_codec TEXT,
-		speed TEXT,
     id INTEGER PRIMARY KEY,
-    FOREIGN KEY (id)
-      REFERENCES transcode_queue (id)
+    job_state TEXT,
+		FOREIGN KEY (id) REFERENCES transcode_queue (id)
   );
   
   CREATE TABLE IF NOT EXISTS completed_jobs (
@@ -208,23 +202,21 @@ func initDbTables(db *sql.DB) error {
     autocrop INTEGER,
     ffmpegargs TEXT,
 		status INTEGER
-    );
+	);
 
   CREATE TABLE IF NOT EXISTS source_metadata (
-	id INTEGER PRIMARY KEY,
-	codec TEXT,
-	width INTEGER,
-	height INTEGER,
-	duration TEXT,
-	FOREIGN KEY (id)
-		REFERENCES transcode_queue (id)
+		id INTEGER PRIMARY KEY,
+		codec TEXT,
+		width INTEGER,
+		height INTEGER,
+		duration TEXT,
+		FOREIGN KEY (id) REFERENCES transcode_queue (id)
 	);
 
   CREATE TABLE IF NOT EXISTS log_files (
-	id INTEGER PRIMARY KEY,
-	logfile TEXT,
-	FOREIGN KEY (id)
-		REFERENCES active_jobs (id)
+		id INTEGER PRIMARY KEY,
+		logfile TEXT,
+		FOREIGN KEY (id) REFERENCES active_jobs (id)
 	);
     `); err != nil {
 		return err
