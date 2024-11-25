@@ -172,6 +172,8 @@ func (p *program) Stop(s service.Service) error {
 	return nil
 }
 
+// initDbTables sets up the database schema by creating tables if they do not exist.
+// We drop the active_jobs table to remove lingering artifacts from unclean shutdowns.
 func initDbTables(db *sql.DB) error {
 	if _, err := db.Exec(`
   CREATE TABLE IF NOT EXISTS transcode_queue (
