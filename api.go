@@ -151,7 +151,7 @@ func queryActive() ([]TranscodeJob, error) {
 // parses an HTML template to generate a response, and writes it back to the client.
 // If any step fails (e.g., retrieving job data, parsing the template),
 // it logs the error with appropriate severity using the logger.
-func statuszHandler(w http.ResponseWriter, req *http.Request) {
+func statuszHandler(w http.ResponseWriter, req *http.Request, statuszTemplate string) {
 	page := PageData{}
 	var err error
 
@@ -164,7 +164,7 @@ func statuszHandler(w http.ResponseWriter, req *http.Request) {
 		logger.Errorf("failed to retrieve active jobs: %v", err)
 	}
 
-	t, err := template.New("results").Parse(html_template)
+	t, err := template.New("results").Parse(statuszTemplate)
 	if err != nil {
 		logger.Errorf("fatal error parsing template: %#v", err)
 		errString := fmt.Sprintf("{error: %v}", err)

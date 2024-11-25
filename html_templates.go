@@ -1,6 +1,6 @@
 package main
 
-const html_template = `
+const statuszTemplate = `
 <!DOCTYPE html>
 <html>
 <head>

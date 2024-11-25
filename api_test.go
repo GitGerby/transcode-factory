@@ -428,3 +428,25 @@ func TestQueryActive(t *testing.T) {
 		})
 	}
 }
+
+// TestStatuszHandler exists to validate that the template string is actually usable.
+func TestStatuszHandler(t *testing.T) {
+	odb := db
+	db = createEmptyTestDb(t)
+	t.Cleanup(func() {
+		db.Close()
+		db = odb
+	})
+
+	req, err := http.NewRequest("GET", "/statusz", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+
+	statuszHandler(rr, req, statuszTemplate)
+	if rr.Result().StatusCode != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rr.Result().StatusCode)
+		t.Logf("body: %s", rr.Body)
+	}
+}
