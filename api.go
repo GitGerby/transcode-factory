@@ -167,10 +167,14 @@ func statuszHandler(w http.ResponseWriter, req *http.Request) {
 	t, err := template.New("results").Parse(html_template)
 	if err != nil {
 		logger.Errorf("fatal error parsing template: %#v", err)
+		errString := fmt.Sprintf("{error: %v}", err)
+		http.Error(w, errString, http.StatusInternalServerError)
 	}
 
 	if err := t.Execute(w, page); err != nil {
 		logger.Errorf("template with data '%#v' failed: %v,", page, err)
+		errString := fmt.Sprintf("{error: %v}", err)
+		http.Error(w, errString, http.StatusInternalServerError)
 	}
 }
 
