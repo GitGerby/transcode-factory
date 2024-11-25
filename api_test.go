@@ -450,3 +450,26 @@ func TestStatuszHandler(t *testing.T) {
 		t.Logf("body: %s", rr.Body)
 	}
 }
+
+// TestSatuszHandlerPanic ensures we actually panic on bad templates.
+func TestStatuszHandlerPanic(t *testing.T) {
+	odb := db
+	db = createEmptyTestDb(t)
+	t.Cleanup(func() {
+		db.Close()
+		db = odb
+	})
+
+	req, err := http.NewRequest("GET", "/statusz", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+
+	defer func() {
+		if p := recover(); p == nil {
+			t.Errorf("statusz did not panic with bad template")
+		}
+	}()
+	statuszHandler(rr, req, "{{range .ActiveJobs}}")
+}
