@@ -90,41 +90,16 @@ func deactivateJob(id int) error {
 }
 
 func updateJobStatus(id int, js JobState) error {
-	tx, err := db.Begin()
+	_, err := db.Exec(`
+		INSERT INTO active_jobs (id, job_state)
+			VALUES (?, ?)
+			ON CONFLICT(id) DO UPDATE SET job_state=excluded.job_state
+  `, id, js)
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %q", err)
-	}
-	defer tx.Rollback()
-
-	i, err := tx.Prepare(`
-  INSERT OR IGNORE INTO active_jobs (id)
-  VALUES (?)
-  `)
-	if err != nil {
-		return fmt.Errorf("failed to prepare sql statement: %q", err)
-	}
-	defer i.Close()
-
-	u, err := tx.Prepare(`
-  UPDATE active_jobs
-  SET job_state = ?
-  WHERE id = ?
-  `)
-	if err != nil {
-		return fmt.Errorf("failed to prepare sql statement: %q", err)
-	}
-	defer u.Close()
-
-	_, err = i.Exec(id)
-	if err != nil {
-		return fmt.Errorf("failed to add job to active_jobs table: %q", err)
-	}
-	_, err = u.Exec(js, id)
-	if err != nil {
-		return fmt.Errorf("failed to update job state: %q", err)
+		return fmt.Errorf("failed to upsert active job %d with status %q: %v", id, js, err)
 	}
 	wsHub.refresh <- true
-	return tx.Commit()
+	return nil
 }
 
 func querySourceTable(id int) (MediaMetadata, error) {

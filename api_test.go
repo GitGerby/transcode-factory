@@ -318,7 +318,7 @@ func TestQueryQueued(t *testing.T) {
 	}
 }
 
-func insertActiveJob(t *testing.T, jobNum int) {
+func insertQueuedJob(t *testing.T, jobNum int, codec string) {
 	t.Helper()
 	_, err := db.Exec(`
 		INSERT INTO transcode_queue(
@@ -333,7 +333,7 @@ func insertActiveJob(t *testing.T, jobNum int) {
 		fmt.Sprintf("/path/to/destination%d.mkv", jobNum),
 		18,
 		fmt.Sprintf(`["srt_file%d"]`, jobNum),
-		"libx265",
+		codec,
 	)
 	if err != nil {
 		t.Errorf("failed inserting to queue: %v", err)
@@ -353,27 +353,16 @@ func insertActiveJob(t *testing.T, jobNum int) {
 	if err != nil {
 		t.Errorf("failed to insert source_metadata: %v", err)
 	}
-
-	_, err = db.Exec(
-		`INSERT INTO active_jobs(
-			id,
-			job_state
-		)
-		VALUES(?, ?)`,
-		jobNum,
-		JOB_TRANSCODING,
-	)
-	if err != nil {
-		t.Errorf("failed to insert active job: %v", err)
-	}
-
 }
 
 func TestQueryActive(t *testing.T) {
 	odb := db
-	defer func() {
+	oh := wsHub
+	wsHub = newHub()
+	t.Cleanup(func() {
 		db = odb
-	}()
+		wsHub = oh
+	})
 	testCases := []struct {
 		desc          string
 		numActiveJobs int
@@ -413,7 +402,11 @@ func TestQueryActive(t *testing.T) {
 
 			db = createEmptyTestDb(t)
 			for i := 1; i <= tc.numActiveJobs; i++ {
-				insertActiveJob(t, i)
+				insertQueuedJob(t, i, tc.expectedJobs[i-1].JobDefinition.Codec)
+				err := updateJobStatus(i, JOB_TRANSCODING)
+				if err != nil {
+					t.Errorf("failed to update job status: %v", err)
+				}
 			}
 
 			r, err := queryActive()
