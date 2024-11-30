@@ -1,7 +1,11 @@
 package main
 
 import (
+	"database/sql"
+	"errors"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestDeactivateJob(t *testing.T) {
@@ -73,4 +77,122 @@ func TestUpdateJobStatus(t *testing.T) {
 		}
 
 	})
+}
+
+func TestPullNextTranscode(t *testing.T) {
+	odb := db
+	oh := wsHub
+	wsHub = newHub()
+	t.Cleanup(func() {
+		db = odb
+		wsHub = oh
+	})
+
+	testCases := []struct {
+		desc           string
+		setup          func()
+		expectedResult TranscodeJob
+		expectedError  error
+	}{
+		{
+			desc:           "empty queue",
+			setup:          func() {},
+			expectedResult: TranscodeJob{},
+			expectedError:  sql.ErrNoRows,
+		},
+		{
+			desc: "transcode in queue",
+			setup: func() {
+				insertQueuedJob(t, 1, "libx265")
+			},
+			expectedResult: TranscodeJob{
+				Id: 1,
+				JobDefinition: TranscodeRequest{
+					Source:        "/path/to/source1.mkv",
+					Destination:   "/path/to/destination1.mkv",
+					Srt_files:     []string{"srt_file1"},
+					Crf:           18,
+					Codec:         "libx265",
+					Video_filters: "",
+					Autocrop:      false,
+				},
+			},
+			expectedError: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			db = createEmptyTestDb(t)
+			defer db.Close()
+
+			tc.setup()
+
+			job, err := pullNextTranscode()
+			if !errors.Is(err, tc.expectedError) {
+				t.Errorf("%q: unexpected error got %v want %v", tc.desc, err, tc.expectedError)
+			}
+			diff := cmp.Diff(tc.expectedResult, job)
+			if diff != "" {
+				t.Errorf("%q: unexpected job pulled: %q", tc.desc, diff)
+			}
+		})
+	}
+}
+
+func TestPullNextCrop(t *testing.T) {
+	odb := db
+	oh := wsHub
+	wsHub = newHub()
+	t.Cleanup(func() {
+		db = odb
+		wsHub = oh
+	})
+
+	testCases := []struct {
+		desc           string
+		setup          func()
+		expectedResult TranscodeJob
+		expectedError  error
+	}{
+		{
+			desc:           "empty queue",
+			setup:          func() {},
+			expectedResult: TranscodeJob{},
+			expectedError:  sql.ErrNoRows,
+		},
+		{
+			desc: "transcode in queue",
+			setup: func() {
+				insertQueuedCrop(t, 1, "libx265")
+			},
+			expectedResult: TranscodeJob{
+				Id: 1,
+				JobDefinition: TranscodeRequest{
+					Source:        "/path/to/source1.mkv",
+					Video_filters: "",
+					Autocrop:      true,
+				},
+			},
+			expectedError: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			db = createEmptyTestDb(t)
+			defer db.Close()
+
+			tc.setup()
+
+			job, err := pullNextCrop()
+			if !errors.Is(err, tc.expectedError) {
+				t.Errorf("%q: unexpected error got %v want %v", tc.desc, err, tc.expectedError)
+			}
+			diff := cmp.Diff(tc.expectedResult, job)
+			if diff != "" {
+				t.Errorf("%q: unexpected job pulled: %s", tc.desc, diff)
+			}
+		})
+	}
 }

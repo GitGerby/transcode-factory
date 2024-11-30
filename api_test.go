@@ -326,14 +326,65 @@ func insertQueuedJob(t *testing.T, jobNum int, codec string) {
 			destination,
 			crf,
 			srt_files,
-			codec
+			codec,
+			autocrop,
+			video_filters,
+			audio_filters
 		)
-		VALUES(?, ?, ?, ?, ?)`,
+		VALUES(?, ?, ?, ?, ?, ?, ?,?)`,
 		fmt.Sprintf("/path/to/source%d.mkv", jobNum),
 		fmt.Sprintf("/path/to/destination%d.mkv", jobNum),
 		18,
 		fmt.Sprintf(`["srt_file%d"]`, jobNum),
 		codec,
+		0,
+		"",
+		"",
+	)
+	if err != nil {
+		t.Errorf("failed inserting to queue: %v", err)
+	}
+
+	_, err = db.Exec(
+		`INSERT INTO source_metadata(
+			id,
+			codec,
+			duration
+		)
+		VALUES(?,?,?)`,
+		jobNum,
+		"h264",
+		"1",
+	)
+	if err != nil {
+		t.Errorf("failed to insert source_metadata: %v", err)
+	}
+}
+
+func insertQueuedCrop(t *testing.T, jobNum int, codec string) {
+	t.Helper()
+	_, err := db.Exec(`
+		INSERT INTO transcode_queue(
+			source,
+			destination,
+			crf,
+			srt_files,
+			codec,
+			autocrop,
+			video_filters,
+			audio_filters,
+			crop_complete
+		)
+		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		fmt.Sprintf("/path/to/source%d.mkv", jobNum),
+		fmt.Sprintf("/path/to/destination%d.mkv", jobNum),
+		18,
+		fmt.Sprintf(`["srt_file%d"]`, jobNum),
+		codec,
+		1,
+		"",
+		"",
+		0,
 	)
 	if err != nil {
 		t.Errorf("failed inserting to queue: %v", err)
@@ -385,7 +436,8 @@ func TestQueryActive(t *testing.T) {
 						Srt_files:     []string{"srt_file1"},
 						Crf:           18,
 						Codec:         "libx265",
-						Video_filters: "none",
+						Video_filters: "",
+						Audio_filters: "",
 					},
 					SourceMeta: MediaMetadata{
 						Codec:    "h264",
