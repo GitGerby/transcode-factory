@@ -35,5 +35,4 @@ func TestLowerPriority(t *testing.T) {
 	if oldPriority == newPriority {
 		t.Log("lowerPriority did not change the priority")
 	}
-	return nil
 }
