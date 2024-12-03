@@ -305,7 +305,7 @@ func mainLoop() {
 
 func launchApi() {
 	http.HandleFunc("/statusz", func(w http.ResponseWriter, r *http.Request) {
-		statuszHandler(w, r, statuszTemplate)
+		statuszHandler(w, statuszTemplate)
 	})
 	http.HandleFunc("/add", func(w http.ResponseWriter, r *http.Request) {
 		addHandler(w, r, wsHub.refresh)

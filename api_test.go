@@ -489,7 +489,8 @@ func TestStatuszHandler(t *testing.T) {
 	}
 	rr := httptest.NewRecorder()
 
-	statuszHandler(rr, req, statuszTemplate)
+	var _ *http.Request = req
+	statuszHandler(http.ResponseWriter(rr), statuszTemplate)
 	if rr.Result().StatusCode != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rr.Result().StatusCode)
 		t.Logf("body: %s", rr.Body)
@@ -516,5 +517,6 @@ func TestStatuszHandlerPanic(t *testing.T) {
 			t.Errorf("statusz did not panic with bad template")
 		}
 	}()
-	statuszHandler(rr, req, "{{range .ActiveJobs}}")
+	var _ *http.Request = req
+	statuszHandler(http.ResponseWriter(rr), "{{range .ActiveJobs}}")
 }
