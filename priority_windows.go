@@ -35,7 +35,7 @@ func lowerPriority() error {
 		return fmt.Errorf("windows.SetPriorityClass for pid: %v returned: %v", uint32(os.Getpid()), err)
 	}
 
-	// Ecoqos / ecomode / power state throttling
+	// Ecoqos / ecomode / power state throttling. 77 is apparently the correct magic number here.
 	t := PROCESS_POWER_THROTTLING_STATE{1, 1, 1}
 	return windows.NtSetInformationProcess(ph, 77, unsafe.Pointer(&t), uint32(unsafe.Sizeof(t)))
 }
