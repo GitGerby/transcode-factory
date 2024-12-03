@@ -1,3 +1,5 @@
 *.exe
 *.ps1
+.*
+!.git
 transcode-factory
