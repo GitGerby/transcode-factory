@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestLowerPriority(t *testing.T) error {
+func TestLowerPriority(t *testing.T) {
 	oldPriority, err := syscall.Getpriority(syscall.PRIO_PROCESS, os.Getpid())
 	if err != nil {
 		t.Fatalf("failed to determine current priority of: %v", os.Getpid())
