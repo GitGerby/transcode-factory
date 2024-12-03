@@ -322,8 +322,15 @@ func launchApi() {
 
 func cropManager() {
 	cg := new(errgroup.Group)
-	cg.SetLimit(4)
-	logger.Infof("crop detect thread listening")
+	cgls := os.Getenv("TF_CROPLIMIT")
+	cgli, err := strconv.Atoi(cgls)
+	if err != nil {
+		logger.Errorf("TF_CROPLIMIT not an int: %v", err)
+		cgli = 4
+	}
+	cg.SetLimit(cgli)
+	logger.Infof("crop detect thread listening; limit %v simultaneous jobs", cgli)
+
 	for {
 		tj, err := pullNextCrop()
 		if err == sql.ErrNoRows {
