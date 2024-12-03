@@ -21,14 +21,15 @@ type PROCESS_POWER_THROTTLING_STATE struct {
 // lowerPriority sets the process to the lowest scheduler priority
 func lowerPriority() error {
 	ph, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_SET_INFORMATION, false, uint32(os.Getpid()))
+	if err != nil {
+		return fmt.Errorf("windows.OpenProcess for pid: %v returned: %v", uint32(os.Getpid()), err)
+	}
 	defer func() {
 		if err := windows.CloseHandle(ph); err != nil {
 			logger.Errorf("failed to close handle after lowering priority: %v", err)
 		}
 	}()
-	if err != nil {
-		return fmt.Errorf("windows.OpenProcess for pid: %v returned: %v", uint32(os.Getpid()), err)
-	}
+
 	err = windows.SetPriorityClass(ph, windows.IDLE_PRIORITY_CLASS)
 	if err != nil {
 		return fmt.Errorf("windows.SetPriorityClass for pid: %v returned: %v", uint32(os.Getpid()), err)
