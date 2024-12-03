@@ -8,6 +8,7 @@ import (
 	"os"
 	"unsafe"
 
+	"github.com/google/logger"
 	"golang.org/x/sys/windows"
 )
 
@@ -20,6 +21,11 @@ type PROCESS_POWER_THROTTLING_STATE struct {
 // lowerPriority sets the process to the lowest scheduler priority
 func lowerPriority() error {
 	ph, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_SET_INFORMATION, false, uint32(os.Getpid()))
+	defer func() {
+		if err := windows.CloseHandle(ph); err != nil {
+			logger.Errorf("failed to close handle after lowering priority: %v", err)
+		}
+	}()
 	if err != nil {
 		return fmt.Errorf("windows.OpenProcess for pid: %v returned: %v", uint32(os.Getpid()), err)
 	}
@@ -31,5 +37,4 @@ func lowerPriority() error {
 	// Ecoqos / ecomode / power state throttling
 	t := PROCESS_POWER_THROTTLING_STATE{1, 1, 1}
 	return windows.NtSetInformationProcess(ph, 77, unsafe.Pointer(&t), uint32(unsafe.Sizeof(t)))
-
 }
