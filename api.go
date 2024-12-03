@@ -166,7 +166,7 @@ func statuszHandler(w http.ResponseWriter, statuszTemplate string) {
 
 	t, err := template.New("results").Parse(statuszTemplate)
 	if err != nil {
-		logger.Errorf("fatal error parsing template: %#v", err)
+		logger.Errorf("fatal error parsing template: %v", err)
 		errString := fmt.Sprintf("{error: %v}", err)
 		http.Error(w, errString, http.StatusInternalServerError)
 	}
