@@ -157,10 +157,6 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 		return fmt.Errorf("metadata probe returned: %q", err)
 	}
 
-	_, err = tx.Exec("UPDATE active_jobs SET source_codec = ? WHERE id = ?", fc.Codec, tj.Id)
-	if err != nil {
-		return fmt.Errorf("failed to update source metadata: %q", err)
-	}
 	_, err = tx.Exec("UPDATE source_metadata SET codec = ?, width = ?, height = ?, duration = ? WHERE id = ?", fc.Codec, fc.Width, fc.Height, fc.Duration, tj.Id)
 	if err != nil {
 		return fmt.Errorf("failed to update source metadata: %q", err)
@@ -217,10 +213,7 @@ func compileVF(tj *TranscodeJob) error {
 	if err != nil {
 		return fmt.Errorf("failed to persist video_filters: %q", err)
 	}
-	_, err = tx.Exec("UPDATE active_jobs SET vfilter = ? WHERE id = ?", tj.JobDefinition.Video_filters, tj.Id)
-	if err != nil {
-		return fmt.Errorf("failed to update video_filters: %q", err)
-	}
+
 	_, err = tx.Exec("UPDATE transcode_queue SET crop_complete = 1 WHERE id = ?", tj.Id)
 	if err != nil {
 		return fmt.Errorf("failed to update crop_complete: %q", err)
