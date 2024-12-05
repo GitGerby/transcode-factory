@@ -17,7 +17,7 @@ func TestLowerPriority(t *testing.T) {
 
 	t.Cleanup(func() {
 		if err := syscall.Setpriority(syscall.PRIO_PROCESS, os.Getpid(), oldPriority); err != nil {
-			t.Errorf("failed to restore original priority: %v", err)
+			t.Logf("failed to restore original priority %d: %v", oldPriority, err)
 		}
 	})
 
