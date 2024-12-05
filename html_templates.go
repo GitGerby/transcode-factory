@@ -2,106 +2,119 @@ package main
 
 const statuszTemplate = `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta http-equiv="refresh" content="600">
-<style>
-  table {width: 100%; border-collapse: collapse;}
-  td, th {border: 1px solid;}
-	.blank_row tr, .blank_row td {border:none;}
-  .highlight_job:hover {background-color: coral;}
-</style>
+    <meta http-equiv="refresh" content="600">
+    <title>Transcode Factory Status</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; border: 1px solid #ddd; padding: 1; }
+        .queued tr:hover { background-color: #f5f5f5; }
+        .highlight_job:hover { background-color: coral;}
+        .highlight_job { border: 1px solid; }
+        .blank_row tr, .blank_row td {border:none;}
+        ul, ol { padding: 0; margin-left: 1em; }
+        @media (max-width: 600px) {
+            table, thead, tbody, th, td, tr { display: block; }
+            th { position: absolute; top: -9999px; left: -9999px; }
+            tr { border: 1px solid #ccc; margin-bottom: 10px; }
+            td { border: none; border-bottom: 1px solid #eee; position: relative; padding-left: 50%; }
+            td:before { content: attr(data-label); font-weight: bold; display: inline-block; padding-right: 10px; }
+        }
+    </style>
 </head>
 <body>
-	<h2>Active Jobs</h2>
-	Currently running jobs: {{len .ActiveJobs}}
-	<table>
-		{{range .ActiveJobs}}
-		<tbody class="highlight_job">
-				<tr>
-					<th style="text-align:left">Job ID:</th>
-					<td>{{.Id}}</td>
-					<th style="text-align:left">Stage:</th>
-					<td>{{.State}}</td>
-				</tr>
-				<tr>
-					<th style="text-align:left">Source:</th>
-					<td>{{.JobDefinition.Source}}</td>
-					<th style="text-align:left">Codec:</th>
-					<td>{{.SourceMeta.Codec}}</td>
-				</tr>
-				<tr>
-					<th style="text-align:left">Destination:</th>
-					<td>{{.JobDefinition.Destination}}</td>
-					<th style="text-align:left">Codec / Crf:</th>
-					<td>{{.JobDefinition.Codec}} / {{.JobDefinition.Crf}}</td>
-				</tr>
-				<tr>
-					<th style="text-align:left">Subtitles:</th>
-					<td colspan = "0">
-						<ol>
-							{{range .JobDefinition.Srt_files}}
-								<li>{{.}}</li>
-							{{end}}
-						</ol>
-					</td>
-					<th style="text-align:left">Video Filter:</th>
-					<td>{{.JobDefinition.Video_filters}}</td>
-				</tr>
-				<tr>
-					<th style="text-align:left">Log Output:</th>
-					<td id="log-{{.Id}}"></td>
-					<th style="text-align:left">Duration:</th>
-					<td>{{.SourceMeta.Duration}}</td>
-				</tr>
+    <h2>Active Jobs</h2>
+    Currently running jobs: {{len .ActiveJobs}}
+    <table>
+        {{range .ActiveJobs}}
+        <tbody class="highlight_job">
+            <tr>
+                <th data-label="Job ID">Job ID:</th>
+                <td>{{.Id}}</td>
+                <th data-label="Stage">Stage:</th>
+                <td>{{.State}}</td>
+            </tr>
+            <tr>
+                <th data-label="Source">Source:</th>
+                <td>{{.JobDefinition.Source}}</td>
+                <th data-label="Codec">Codec:</th>
+                <td>{{.SourceMeta.Codec}}</td>
+            </tr>
+            <tr>
+                <th data-label="Destination">Destination:</th>
+                <td>{{.JobDefinition.Destination}}</td>
+                <th data-label="Codec / Crf">Codec / Crf:</th>
+                <td>{{.JobDefinition.Codec}} / {{.JobDefinition.Crf}}</td>
+            </tr>
+            <tr>
+                <th data-label="Subtitles">Subtitles:</th>
+                <td>
+                    <ol>
+                        {{range .JobDefinition.Srt_files}}
+                            <li>{{.}}</li>
+                        {{end}}
+                    </ol>
+                </td>
+                <th data-label="Video Filters">Video Filter:</th>
+                <td>{{.JobDefinition.Video_filters}}</td>
+            </tr>
+            <tr>
+                <th data-label="Log Output">Log Output:</th>
+                <td id="log-{{.Id}}"></td>
+                <th data-label="Duration">Duration:</th>
+                <td>{{.SourceMeta.Duration}}</td>
+            </tr>
+        </tbody>
+        <tbody>
+            <tr class="blank_row"><td colspan="4" style="height: 1em;"></td></tr>
 		</tbody>
-		<tbody>
-        <tr class="blank_row"><td colspan="4" style="height: 1em;"></td></tr>
-		</tbody>
-		{{end}}
-	</table>
-	<h2>Current Queue</h2><br>
-	Queue Length: {{len .QueuedJobs}}
-  <table>
-    <tr>
-      <th>Job ID</th>
-      <th>Source</th>
-      <th>Destination</th>
-      <th>CRF</th>
-      <th>autocrop</th>
-      <th>SRT Files</th>
-    </tr>
-    {{range .QueuedJobs}}
-      <tr>
-        <td>{{.Id}}</td>
-        <td>{{.JobDefinition.Source}}</td>
-        <td>{{.JobDefinition.Destination}}</td>
-        <td>{{.JobDefinition.Crf}}</td>
-        <td>{{.CropState}}</td>
-        <td>
-        {{range .JobDefinition.Srt_files}}
-        {{.}}<br>
-        {{end}}</td>
-      </tr>
-    {{end}}
-  </table>
-	    <script>
-				var loc = window.location.hostname;
-				var ws_uri = "ws://" + loc + ":51218/logstream";
+
+        {{end}}
+    </table>
+    <h2>Current Queue</h2><br>
+    Queue Length: {{len .QueuedJobs}}
+    <table>
+        <tr>
+            <th>Job ID</th>
+            <th>Source</th>
+            <th>Destination</th>
+            <th>CRF</th>
+            <th>Autocrop</th>
+            <th>SRT Files</th>
+        </tr>
+        {{range .QueuedJobs}}
+        <tr class="queued">
+            <td data-label="Job ID">{{.Id}}</td>
+            <td data-label="Source">{{.JobDefinition.Source}}</td>
+            <td data-label="Destination">{{.JobDefinition.Destination}}</td>
+            <td data-label="CRF">{{.JobDefinition.Crf}}</td>
+            <td data-label="autocrop">{{.CropState}}</td>
+            <td data-label="SRT Files">
+                {{range .JobDefinition.Srt_files}}
+                    {{.}}<br>
+                {{end}}
+            </td>
+        </tr>
+        {{end}}
+    </table>
+    <script>
+        var loc = window.location.hostname;
+        var ws_uri = "ws://" + loc + ":51218/logstream";
         var ws = new WebSocket(ws_uri);
 
         ws.onmessage = function(event) {
-					var statusMessage = JSON.parse(event.data);
-
-						if (statusMessage.RefreshNeeded == true) {
-							ws.close();
-							location.reload();
-						}
-						{{range .ActiveJobs}}
-						if (statusMessage.LogMessages[{{.Id}}]) {
-							document.getElementById("log-{{.Id}}").innerText = statusMessage.LogMessages[{{.Id}}];
-						}
-						{{end}}
+            var statusMessage = JSON.parse(event.data);
+            if (statusMessage.RefreshNeeded == true) {
+                ws.close();
+                location.reload();
+            }
+            {{range .ActiveJobs}}
+            if (statusMessage.LogMessages[{{.Id}}]) {
+                document.getElementById("log-{{.Id}}").innerText = statusMessage.LogMessages[{{.Id}}];
+            }
+            {{end}}
         };
 
         ws.onerror = function(err) {

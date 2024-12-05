@@ -80,13 +80,8 @@ func pullNextTranscode() (TranscodeJob, error) {
 }
 
 func deactivateJob(id int) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %q", err)
-	}
-	defer tx.Rollback()
-	tx.Exec("DELETE FROM active_jobs WHERE id = ?", id)
-	return tx.Commit()
+	_, err := db.Exec("DELETE FROM active_jobs WHERE id = ?", id)
+	return err
 }
 
 func updateJobStatus(id int, js JobState) error {

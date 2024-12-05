@@ -231,12 +231,15 @@ func mainLoop() {
 	el := os.Getenv("TF_TRANSCODELIMIT")
 	transcodeLimit, err := strconv.Atoi(el)
 	if err != nil {
-		logger.Warningf("TF_TRANSCODELIMIT not an int: %v", err)
+		if el != "" {
+			logger.Warningf("TF_TRANSCODELIMIT not an int: %v", err)
+		}
 		transcodeLimit = 1
 	}
 	tg.SetLimit(transcodeLimit)
 
 	for {
+		// pull the next available job
 		tj, err := pullNextTranscode()
 		if err == sql.ErrNoRows {
 			time.Sleep(2 * time.Second)
@@ -269,6 +272,11 @@ func mainLoop() {
 			continue
 		}
 
+		// remove the job from the active list until a thread is launched to run it
+		if err := deactivateJob(tj.Id); err != nil {
+			logger.Errorf("deactivateJob(%d): %v", tj.Id, err)
+		}
+
 		switch tj.JobDefinition.Codec {
 		case "copy":
 			enqueueCopy(&tj)
@@ -277,10 +285,13 @@ func mainLoop() {
 			tg.Go(func() error {
 				// Mark job active
 				logger.Infof("job id %d: beginning transcode", tj.Id)
-				updateJobStatus(tj.Id, JOB_TRANSCODING)
+				err := updateJobStatus(tj.Id, JOB_TRANSCODING)
+				if err != nil {
+					logger.Errorf("failed to update job status: %v", err)
+				}
 
 				var args []string
-				args, err := transcodeMedia(&tj)
+				args, err = transcodeMedia(&tj)
 				if err != nil {
 					if errors.Is(err, context.Canceled) {
 						logger.Errorf("service shutting down: %v", err)
@@ -298,7 +309,7 @@ func mainLoop() {
 				logger.Infof("job id %d: complete", tj.Id)
 				return nil
 			})
-			continue
+			time.Sleep(100 * time.Millisecond) // Give time for the job to start
 		}
 	}
 }
@@ -325,7 +336,9 @@ func cropManager() {
 	cgls := os.Getenv("TF_CROPLIMIT")
 	cgli, err := strconv.Atoi(cgls)
 	if err != nil {
-		logger.Errorf("TF_CROPLIMIT not an int: %v", err)
+		if cgls != "" {
+			logger.Errorf("TF_CROPLIMIT not an int: %v", err)
+		}
 		cgli = 4
 	}
 	cg.SetLimit(cgli)
@@ -361,7 +374,7 @@ func cropManager() {
 			}
 			return nil
 		})
-		time.Sleep(1 * time.Second) // give time for the job to activate, 1 seconds is a good compromise between throughput and latency
+		time.Sleep(100 * time.Millisecond) // give time for the job to activate
 	}
 }
 
