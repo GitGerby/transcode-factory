@@ -157,7 +157,12 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 
 	args = append(args, "-i", tj.JobDefinition.Source)
 
-	mapargs := []string{"-map", "0:v:0", "-map", "0:a:m:language:eng?", "-map", "0:s:m:language:eng?", "-map", "0:t?"}
+	mapargs := []string{
+		"-map", "0:v:0",
+		"-map", "0:a:m:language:eng:?",
+		"-map", "0:s:m:language:eng:?",
+		"-map", "0:t?"}
+
 	if len(tj.JobDefinition.Srt_files) > 0 {
 		for m, i := range tj.JobDefinition.Srt_files {
 			if len(i) > 0 {
