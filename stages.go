@@ -22,11 +22,16 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/google/logger"
 )
 
+// pullNextCrop retrieves the next crop job from the queue.
+//
+// It selects a job that is not yet completed or active, requires cropping
+// (autocrop = 1), has not been cropped yet (crop_complete != 1), and does not
+// use the 'copy' codec. The job details, including the source and video filters,
+// are populated and returned as a TranscodeJob struct.
 func pullNextCrop() (TranscodeJob, error) {
 	niq := `
   SELECT id, source, video_filters
@@ -52,6 +57,10 @@ func pullNextCrop() (TranscodeJob, error) {
 	return tj, nil
 }
 
+// pullNextTranscode retrieves the next transcode job from the queue.
+//
+// It selects a job that is not yet completed, a copy, or active and is not
+// waiting for autocrop. The job details returned as a TranscodeJob struct.
 func pullNextTranscode() (TranscodeJob, error) {
 	niq := `
   SELECT id, source, destination, IFNULL(crf,18) as crf, srt_files, IFNULL(autocrop,1) as autocrop, video_filters, audio_filters, codec 
@@ -84,6 +93,7 @@ func deactivateJob(id int) error {
 	return err
 }
 
+// updateJobStatus sets the status of a job in the database and refreshes all connected status pages
 func updateJobStatus(id int, js JobState) error {
 	_, err := db.Exec(`
 		INSERT INTO active_jobs (id, job_state)
@@ -97,6 +107,7 @@ func updateJobStatus(id int, js JobState) error {
 	return nil
 }
 
+// querySourceTable returns the media metadata or an error for a given job.
 func querySourceTable(id int) (MediaMetadata, error) {
 	tx, err := db.Begin()
 	if err != nil {
@@ -276,6 +287,8 @@ func finishJob(tj *TranscodeJob, args []string) error {
 	return tx.Commit()
 }
 
+// registerLogFile registers a log file path for a given job ID.
+// It inserts or replaces the file path in the 'log_files' table.
 func registerLogFile(jobId int, filePath string) error {
 	_, err := db.Exec(`
 	INSERT OR REPLACE INTO log_files(id, logfile)
@@ -283,9 +296,5 @@ func registerLogFile(jobId int, filePath string) error {
 	if err != nil {
 		return err
 	}
-	go func() {
-		time.Sleep(5 * time.Second)
-		wsHub.refresh <- true
-	}()
 	return nil
 }
