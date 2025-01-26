@@ -19,13 +19,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/google/logger"
 )
@@ -185,14 +183,7 @@ func ffmpegTranscode(tj TranscodeJob) ([]string, error) {
 	args = append(args, mapargs...)
 	args = append(args, tj.JobDefinition.Destination)
 
-	_, fp := filepath.Split(tj.JobDefinition.Destination)
-	logdest := filepath.Join(transcode_log_path, fmt.Sprintf("%s_%d.log", fp, time.Now().UnixNano()))
-	log, err := os.Create(logdest)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create log file: %v", err)
-	}
-
-	err = registerLogFile(tj.Id, logdest)
+	log, err := registerLogFile(tj)
 	if err != nil {
 		logger.Errorf("failed to register log file: %v", err)
 	}

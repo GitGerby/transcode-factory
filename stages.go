@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/logger"
 )
@@ -289,12 +290,19 @@ func finishJob(tj *TranscodeJob, args []string) error {
 
 // registerLogFile registers a log file path for a given job ID.
 // It inserts or replaces the file path in the 'log_files' table.
-func registerLogFile(jobId int, filePath string) error {
-	_, err := db.Exec(`
-	INSERT OR REPLACE INTO log_files(id, logfile)
-	VALUES(?,?)`, jobId, filePath)
+func registerLogFile(tj TranscodeJob) (*os.File, error) {
+	_, fp := filepath.Split(tj.JobDefinition.Destination)
+	logdest := filepath.Join(transcode_log_path, fmt.Sprintf("%s_%d.log", fp, time.Now().UnixNano()))
+	log, err := os.Create(logdest)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to create log file: %v", err)
 	}
-	return nil
+
+	_, err = db.Exec(`
+	INSERT OR REPLACE INTO log_files(id, logfile)
+	VALUES(?,?)`, tj.Id, logdest)
+	if err != nil {
+		return nil, err
+	}
+	return log, nil
 }
