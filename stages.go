@@ -293,16 +293,19 @@ func finishJob(tj *TranscodeJob, args []string) error {
 func registerLogFile(tj TranscodeJob) (*os.File, error) {
 	_, fp := filepath.Split(tj.JobDefinition.Destination)
 	logdest := filepath.Join(transcode_log_path, fmt.Sprintf("%s_%d.log", fp, time.Now().UnixNano()))
+
 	log, err := os.Create(logdest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create log file: %v", err)
 	}
 
 	_, err = db.Exec(`
-	INSERT OR REPLACE INTO log_files(id, logfile)
-	VALUES(?,?)`, tj.Id, logdest)
+		INSERT OR REPLACE INTO log_files(id, logfile)
+		VALUES(?,?)
+	`, tj.Id, logdest)
 	if err != nil {
 		return nil, err
 	}
+
 	return log, nil
 }
