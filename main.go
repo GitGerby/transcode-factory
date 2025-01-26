@@ -172,6 +172,23 @@ func (p *program) Stop(s service.Service) error {
 	return nil
 }
 
+func launchApi() {
+	http.HandleFunc("/statusz", func(w http.ResponseWriter, r *http.Request) {
+		statuszHandler(w, statuszTemplate)
+	})
+	http.HandleFunc("/add", func(w http.ResponseWriter, r *http.Request) {
+		addHandler(w, r, wsHub.refresh)
+	})
+	http.HandleFunc("/bulkadd", func(w http.ResponseWriter, r *http.Request) {
+		bulkAddHandler(w, r, wsHub.refresh)
+	})
+	http.HandleFunc("/logstream", logStream)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/statusz", http.StatusFound)
+	})
+	go http.ListenAndServe(":51218", nil)
+}
+
 // initDbTables sets up the database schema by creating tables if they do not exist.
 // We drop the active_jobs table to remove lingering artifacts from unclean shutdowns.
 func initDbTables(db *sql.DB) error {
@@ -314,34 +331,14 @@ func mainLoop() {
 	}
 }
 
-func launchApi() {
-	http.HandleFunc("/statusz", func(w http.ResponseWriter, r *http.Request) {
-		statuszHandler(w, statuszTemplate)
-	})
-	http.HandleFunc("/add", func(w http.ResponseWriter, r *http.Request) {
-		addHandler(w, r, wsHub.refresh)
-	})
-	http.HandleFunc("/bulkadd", func(w http.ResponseWriter, r *http.Request) {
-		bulkAddHandler(w, r, wsHub.refresh)
-	})
-	http.HandleFunc("/logstream", logStream)
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/statusz", http.StatusFound)
-	})
-	go http.ListenAndServe(":51218", nil)
-}
-
 func cropManager() {
 	cg := new(errgroup.Group)
-	cgls := os.Getenv("TF_CROPLIMIT")
-	cgli, err := strconv.Atoi(cgls)
+	cgl, err := strconv.Atoi(os.Getenv("TF_CROPLIMIT"))
 	if err != nil {
-		if cgls != "" {
-			logger.Errorf("TF_CROPLIMIT not an int: %v", err)
-		}
-		cgli = 4
+		logger.Errorf("TF_CROPLIMIT not an int: %v", err)
+		cgl = 4
 	}
-	cg.SetLimit(cgli)
+	cg.SetLimit(cgl)
 	logger.Infof("crop detect thread listening; limit %v simultaneous jobs", cgli)
 
 	for {
@@ -380,9 +377,15 @@ func cropManager() {
 
 func copyManager() {
 	cwg := new(errgroup.Group)
-	// don't run more than 2 copy threads at a time.
-	cwg.SetLimit(2)
-	logger.Info("copy manager waiting")
+	// detect copy limit at run time.
+	cwgl, err := strconv.Atoi(os.Getenv("TF_COPYLIMIT"))
+	if err != nil {
+		logger.Errorf("TF_COPYLIMIT not an int: %v", err)
+		// default to 4 simultaneous copies
+		cwgl = 4
+	}
+	cwg.SetLimit(cwgl)
+	logger.Info("copy manager waiting, max %d simultaneous jobs", cwgl)
 
 	for {
 		if len(queueCopy) == 0 {
