@@ -74,18 +74,24 @@ func (c *Client) writePump() {
 			if !ok {
 				// The hub closed the channel.
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
-				logger.Infof("client: %#v, the hub closed the channel", c)
+				if os.Getenv("TF_DEBUG_LOG") != "" {
+					logger.Infof("client: %#v, the hub closed the channel", c)
+				}
 				return
 			}
 
 			if err := c.conn.WriteJSON(message); err != nil {
-				logger.Errorf("client: %#v, error writing json message: %v", c, err)
+				if os.Getenv("TF_DEBUG_LOG") != "" {
+					logger.Errorf("client: %#v, error writing json message: %v", c, err)
+				}
 				return
 			}
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				logger.Errorf("client: %#v, error writing message: %v", c, err)
+				if os.Getenv("TF_DEBUG_LOG") != "" {
+					logger.Errorf("client: %#v, error writing message: %v", c, err)
+				}
 				return
 			}
 		}
@@ -96,10 +102,11 @@ func (c *Client) readPump() {
 	c.conn.SetReadLimit(4096)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+
 	for {
 		_, _, err := c.conn.ReadMessage()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) && os.Getenv("TF_DEBUG_LOG") != "" {
 				logger.Errorf("error: %v", err)
 			}
 			break
@@ -293,7 +300,7 @@ func tailLog(filePath string) (string, error) {
 			return "", err
 		}
 	}
-	if d := os.Getenv("TF_DEBUG_LOG"); d != "" {
+	if os.Getenv("TF_DEBUG_LOG") != "" {
 		logger.Infof("Last line: %s", string(lastLine))
 	}
 	return strings.TrimSpace(string(lastLine)), nil
