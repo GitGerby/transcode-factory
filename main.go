@@ -294,40 +294,34 @@ func mainLoop() {
 			logger.Errorf("deactivateJob(%d): %v", tj.Id, err)
 		}
 
-		switch tj.JobDefinition.Codec {
-		case "copy":
-			enqueueCopy(&tj)
-			continue
-		default:
-			tg.Go(func() error {
-				// Mark job active
-				logger.Infof("job id %d: beginning transcode", tj.Id)
-				err := updateJobStatus(tj.Id, JOB_TRANSCODING)
-				if err != nil {
-					logger.Errorf("failed to update job status: %v", err)
-				}
+		tg.Go(func() error {
+			// Mark job active
+			logger.Infof("job id %d: beginning transcode", tj.Id)
+			err := updateJobStatus(tj.Id, JOB_TRANSCODING)
+			if err != nil {
+				logger.Errorf("failed to update job status: %v", err)
+			}
 
-				var args []string
-				args, err = transcodeMedia(&tj)
-				if err != nil {
-					if errors.Is(err, context.Canceled) {
-						logger.Errorf("service shutting down: %v", err)
-						return err
-					}
-					logger.Errorf("transcodeMedia() error: %q", err)
-					tj.State = JOB_FAILED
-					if err := finishJob(&tj, nil); err != nil {
-						logger.Fatalf("failed to cleanup job: %q", err)
-					}
+			var args []string
+			args, err = transcodeMedia(&tj)
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					logger.Errorf("service shutting down: %v", err)
+					return err
 				}
-				updateJobStatus(tj.Id, JOB_SUCCESS)
-				tj.State = JOB_SUCCESS
-				finishJob(&tj, args)
-				logger.Infof("job id %d: complete", tj.Id)
-				return nil
-			})
-			time.Sleep(100 * time.Millisecond) // Give time for the job to start
-		}
+				logger.Errorf("transcodeMedia() error: %q", err)
+				tj.State = JOB_FAILED
+				if err := finishJob(&tj, nil); err != nil {
+					logger.Fatalf("failed to cleanup job: %q", err)
+				}
+			}
+			updateJobStatus(tj.Id, JOB_SUCCESS)
+			tj.State = JOB_SUCCESS
+			finishJob(&tj, args)
+			logger.Infof("job id %d: complete", tj.Id)
+			return nil
+		})
+		time.Sleep(100 * time.Millisecond) // Give time for the job to start
 	}
 }
 
@@ -339,7 +333,7 @@ func cropManager() {
 		cgl = 4
 	}
 	cg.SetLimit(cgl)
-	logger.Infof("crop detect thread listening; limit %v simultaneous jobs", cgli)
+	logger.Infof("crop detect thread listening; limit %v simultaneous jobs", cgl)
 
 	for {
 		tj, err := pullNextCrop()
@@ -385,15 +379,16 @@ func copyManager() {
 		cwgl = 4
 	}
 	cwg.SetLimit(cwgl)
-	logger.Info("copy manager waiting, max %d simultaneous jobs", cwgl)
+	logger.Infof("copy manager waiting, max %d simultaneous jobs", cwgl)
 
 	for {
-		if len(queueCopy) == 0 {
-			time.Sleep(2 * time.Second)
+		tj, err := pullNextCopy()
+		if err == sql.ErrNoRows {
+			time.Sleep(250 * time.Millisecond)
 			continue
+		} else if err != nil {
+			logger.Errorf("failed to pull next copy item: %q", err)
 		}
-
-		tj := dequeueCopy()
 
 		cwg.Go(func() error {
 			logger.Infof("starting copy for %#v", tj)
@@ -402,50 +397,28 @@ func copyManager() {
 				logger.Errorf("failed to create destination directory: %v", err)
 				return nil
 			}
-			if err := updateSourceMetadata(tj); err != nil {
+			if err := updateSourceMetadata(&tj); err != nil {
 				logger.Errorf("failed to update source metadata for job %d: %v", tj.Id, err)
 			}
 			if err := updateJobStatus(tj.Id, JOB_TRANSCODING); err != nil {
 				logger.Errorf("failed to update job: %d with error: %v", tj.Id, err)
 			}
-			args, err := ffmpegTranscode(*tj)
+			args, err := ffmpegTranscode(tj)
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					return err
 				}
 				logger.Errorf("job id %d: failed to run ffmpeg copy with err: %v", tj.Id, err)
-				if err := finishJob(tj, []string{}); err != nil {
+				if err := finishJob(&tj, []string{}); err != nil {
 					logger.Errorf("failed to cleanup job: %q", err)
 				}
 			}
 			tj.State = JOB_SUCCESS
-			finishJob(tj, args)
+			finishJob(&tj, args)
 			logger.Infof("job id %d: complete", tj.Id)
 			return nil
 		})
 	}
-}
-
-// dequeueCopy removes and returns the first TranscodeJob from the queueCopy list.
-// It uses a mutex (muCopy) to ensure that concurrent access to the shared resource (queueCopy) is synchronized,
-// preventing race conditions where multiple goroutines might attempt to modify or read the queue simultaneously.
-// This function locks the muCopy mutex before accessing and modifying the queueCopy list, ensuring thread-safe operations.
-func dequeueCopy() *TranscodeJob {
-	muCopy.Lock()
-	defer func() { muCopy.Unlock() }()
-	nextCopy := queueCopy[0]
-	queueCopy = queueCopy[1:]
-	return nextCopy
-}
-
-// enqueueCopy adds a new TranscodeJob to the queueCopy list and updates its status to JOB_PENDINGTRANSCODE.
-// It uses a mutex (muCopy) to ensure that concurrent access to the shared resource (queueCopy) is synchronized,
-// preventing race conditions where multiple goroutines might attempt to modify or read the queue simultaneously.
-func enqueueCopy(tj *TranscodeJob) {
-	muCopy.Lock()
-	defer func() { muCopy.Unlock() }()
-	updateJobStatus(tj.Id, JOB_PENDINGTRANSCODE)
-	queueCopy = append(queueCopy, tj)
 }
 
 func main() {

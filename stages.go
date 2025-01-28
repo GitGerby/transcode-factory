@@ -53,7 +53,7 @@ func pullNextCrop() (TranscodeJob, error) {
 	if err == sql.ErrNoRows {
 		return TranscodeJob{}, err
 	} else if err != nil {
-		return TranscodeJob{}, fmt.Errorf("db query error: %q", err)
+		return TranscodeJob{}, fmt.Errorf("db query error: %w", err)
 	}
 	return tj, nil
 }
@@ -68,7 +68,7 @@ func pullNextTranscode() (TranscodeJob, error) {
   FROM transcode_queue
   WHERE id NOT IN (SELECT id FROM completed_jobs)
 	AND id NOT IN (SELECT id FROM active_jobs)
-	AND ((autocrop = 1 AND crop_complete = 1) OR (autocrop = 0) OR (LOWER(codec) = 'copy'))
+	AND ((autocrop = 1 AND crop_complete = 1) OR ((autocrop = 0) AND (LOWER(codec) != 'copy')))
   ORDER BY id ASC
   LIMIT 1;`
 
@@ -79,9 +79,35 @@ func pullNextTranscode() (TranscodeJob, error) {
 	if err == sql.ErrNoRows {
 		return TranscodeJob{}, err
 	} else if err != nil {
-		return TranscodeJob{}, fmt.Errorf("db query error: %q", err)
+		return TranscodeJob{}, fmt.Errorf("db query error: %w", err)
 	}
 
+	err = json.Unmarshal(subs, &tj.JobDefinition.Srt_files)
+	if err != nil {
+		logger.Errorf("failed to unmarshal srt files: %q", err)
+	}
+	return tj, nil
+}
+
+func pullNextCopy() (TranscodeJob, error) {
+	niq := `
+  SELECT id, source, destination, IFNULL(crf,18) as crf, srt_files, IFNULL(autocrop,1) as autocrop, video_filters, audio_filters, codec 
+  FROM transcode_queue
+  WHERE id NOT IN (SELECT id FROM completed_jobs)
+	AND id NOT IN (SELECT id FROM active_jobs)
+	AND LOWER(codec) = 'copy'
+  ORDER BY id ASC
+  LIMIT 1;`
+
+	r := db.QueryRow(niq)
+	var tj TranscodeJob
+	var subs []byte
+	err := r.Scan(&tj.Id, &tj.JobDefinition.Source, &tj.JobDefinition.Destination, &tj.JobDefinition.Crf, &subs, &tj.JobDefinition.Autocrop, &tj.JobDefinition.Video_filters, &tj.JobDefinition.Audio_filters, &tj.JobDefinition.Codec)
+	if err == sql.ErrNoRows {
+		return TranscodeJob{}, err
+	} else if err != nil {
+		return TranscodeJob{}, fmt.Errorf("db query error: %w", err)
+	}
 	err = json.Unmarshal(subs, &tj.JobDefinition.Srt_files)
 	if err != nil {
 		logger.Errorf("failed to unmarshal srt files: %q", err)
