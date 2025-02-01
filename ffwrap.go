@@ -492,6 +492,25 @@ func buildCodec(codec string, crf int, colorMeta colorInfo) []string {
 			libx265 = append(libx265, "-x265-params", strings.Join(x265params, ":"))
 		}
 		return append(libx265, "-pix_fmt", "yuv420p10le")
+	case "libx265_grain":
+		libx265 = append(libx265, "-tune", "grain")
+		x265params := []string{
+			"hdr-opt=1",
+			"repeat-headers=1",
+		}
+		hdrcolor, x265color, err := libx265HDR(colorMeta)
+		if err != nil {
+			logger.Errorf("failed to generate color args, continuing without: %v", err)
+		}
+
+		if len(hdrcolor) > 0 {
+			libx265 = append(libx265, hdrcolor...)
+		}
+		if len(x265color) > 0 {
+			x265params = append(x265params, x265color...)
+			libx265 = append(libx265, "-x265-params", strings.Join(x265params, ":"))
+		}
+		return append(libx265, "-pix_fmt", "yuv420p10le")
 	default:
 		x265params := []string{
 			"hdr-opt=1",
