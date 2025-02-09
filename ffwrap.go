@@ -135,7 +135,7 @@ func probeMetadata(source string) (MediaMetadata, error) {
 	}
 
 	if len(ffp.Streams) != 1 {
-		return MediaMetadata{}, errors.New("wrong number of streams in ffprobe output")
+		return MediaMetadata{}, fmt.Errorf("got %d streams in ffprobe output; expected 1", len(ffp.Streams))
 	}
 
 	return MediaMetadata{

@@ -24,7 +24,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"time"
 
 	"database/sql"
@@ -86,8 +85,6 @@ var (
 	ffmpegbinary       string
 	ffprobebinary      string
 	transcode_log_path string
-	muCopy             sync.Mutex
-	queueCopy          []*TranscodeJob
 	wsHub              *Hub
 )
 
