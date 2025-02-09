@@ -287,31 +287,24 @@ func finishJob(tj *TranscodeJob, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %q", err)
 	}
-	defer tx.Rollback()
-
-	complete, err := tx.Prepare(cq)
-	if err != nil {
-		return fmt.Errorf("failed to prepare sql: %v", err)
-	}
-	clean, err := tx.Prepare(rm)
-	if err != nil {
-		return fmt.Errorf("failed to prepare sql: %v", err)
-	}
+	defer func() {
+		tx.Rollback()
+		wsHub.refresh <- true
+	}()
 
 	a, err := json.Marshal(args)
 	if err != nil {
 		return err
 	}
-	_, err = complete.Exec(tj.Id, tj.JobDefinition.Source, tj.JobDefinition.Destination, tj.JobDefinition.Autocrop, a, tj.State)
+	_, err = tx.Exec(cq, tj.Id, tj.JobDefinition.Source, tj.JobDefinition.Destination, tj.JobDefinition.Autocrop, a, tj.State)
 	if err != nil {
 		return fmt.Errorf("failed to add completion record: %v", err)
 	}
-	_, err = clean.Exec(tj.Id, tj.Id)
+	_, err = tx.Exec(rm, tj.Id, tj.Id)
 	if err != nil {
 		return fmt.Errorf("failed to remove job records: %v", err)
 	}
 
-	wsHub.refresh <- true
 	return tx.Commit()
 }
 
