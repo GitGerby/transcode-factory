@@ -141,7 +141,8 @@ func querySourceTable(id int) (MediaMetadata, error) {
 		return MediaMetadata{}, fmt.Errorf("failed to begin transaction: %q", err)
 	}
 	defer tx.Rollback()
-	r := tx.QueryRow("SELECT codec, width, height FROM source_metadata WHERE id = ?", id)
+	// IFNULL --> 8k resolution this ensures crops will trigger on basically any video if we don't detect the correct size
+	r := tx.QueryRow("SELECT codec, IFNULL(width,7680), IFNULL(height,4320) FROM source_metadata WHERE id = ?", id)
 	var m MediaMetadata
 	err = r.Scan(&m.Codec, &m.Width, &m.Height)
 	if err == sql.ErrNoRows {

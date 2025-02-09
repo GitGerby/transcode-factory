@@ -297,3 +297,56 @@ func TestPullNextCopy(t *testing.T) {
 		})
 	}
 }
+
+func TestQuerySourceTable(t *testing.T) {
+	testCases := []struct {
+		desc           string
+		setup          func()
+		jobId          int
+		expectedResult MediaMetadata
+		expectedError  error
+	}{
+		{
+			desc:           "empty",
+			setup:          func() {},
+			jobId:          1,
+			expectedResult: MediaMetadata{},
+			expectedError:  sql.ErrNoRows,
+		},
+		{
+			desc: "job not present",
+			setup: func() {
+				insertQueuedJob(t, 2, "libx265")
+			},
+			jobId:          1,
+			expectedResult: MediaMetadata{},
+			expectedError:  sql.ErrNoRows,
+		},
+		{
+			desc: "job found",
+			setup: func() {
+				insertQueuedJob(t, 1, "libx265")
+			},
+			jobId: 1,
+			expectedResult: MediaMetadata{
+				Width:  7680,
+				Height: 4320,
+				Codec:  "h264",
+			},
+			expectedError: nil,
+		},
+	}
+	for _, tc := range testCases {
+		db = createEmptyTestDb(t)
+		tc.setup()
+		mm, err := querySourceTable(tc.jobId)
+		if err != tc.expectedError {
+			t.Errorf("%s: querySourceTable(%d) got err: %v, want %v", tc.desc, tc.jobId, err, tc.expectedError)
+		}
+		diff := cmp.Diff(mm, tc.expectedResult)
+		if diff != "" {
+			t.Errorf("%s: querySourceTable(%d) differed from expected value: %s", tc.desc, tc.jobId, diff)
+		}
+		db.Close()
+	}
+}
