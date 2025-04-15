@@ -1,8 +1,7 @@
 module github.com/gitgerby/transcode-factory
 
 go 1.22.0
-
-toolchain go1.23.3
+toolchain go1.24.1
 
 require (
 	github.com/google/logger v1.1.1
@@ -15,14 +14,7 @@ require (
 )
 
 require (
-	github.com/StackExchange/wmi v1.2.1 // indirect
-	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/google/certtostore v1.0.4 // indirect
-	github.com/google/deck v1.1.0 // indirect
-	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
-	golang.org/x/crypto v0.33.0 // indirect
 	golang.org/x/exp v0.0.0-20250207012021-f9890c6ad9f3 // indirect
 )
 
