@@ -1,7 +1,7 @@
 //go:build linux || darwin
 // +build linux darwin
 
-package main
+package priority
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"syscall"
 )
 
-func lowerPriority() error {
+func LowerPriority() error {
 	niceValue := 10 // This is a low priority setting (range is -20 to 19 where -20 is the most favorably scheduled)
 	err := syscall.Setpriority(syscall.PRIO_PROCESS, os.Getpid(), niceValue)
 	if err != nil {

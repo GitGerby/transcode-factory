@@ -1,7 +1,7 @@
 //go:build linux || darwin
 // +build linux darwin
 
-package main
+package priority
 
 import (
 	"os"
@@ -21,7 +21,7 @@ func TestLowerPriority(t *testing.T) {
 		}
 	})
 
-	err = lowerPriority()
+	err = LowerPriority()
 	if err != nil {
 		t.Errorf("failed to lower priority: %v", err)
 	}

@@ -28,6 +28,8 @@ import (
 
 	"database/sql"
 
+	"github.com/gitgerby/transcode-factory/internal/pkg/priority"
+
 	"github.com/google/logger"
 	"github.com/kardianos/service"
 
@@ -96,7 +98,7 @@ func (p *program) Start(s service.Service) error {
 func (p *program) Run() {
 	var err error
 	// Lower process priority to reduce impact on interactive uses of the host
-	err = lowerPriority()
+	err = priority.LowerPriority()
 	if err != nil {
 		logger.Errorf("lowerPriority() returned: %v", err)
 	}

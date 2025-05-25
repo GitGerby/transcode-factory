@@ -1,7 +1,7 @@
 //go:build windows
 // +build windows
 
-package main
+package priority
 
 import (
 	"os"
@@ -34,7 +34,7 @@ func TestLowerPriority(t *testing.T) {
 		}
 	})
 
-	err = lowerPriority()
+	err = LowerPriority()
 	if err != nil {
 		t.Errorf("lowerPriority failed: %v", err)
 	}

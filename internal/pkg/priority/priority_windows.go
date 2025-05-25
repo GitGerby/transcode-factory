@@ -1,7 +1,7 @@
 //go:build windows
 // +build windows
 
-package main
+package priority
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ type PROCESS_POWER_THROTTLING_STATE struct {
 }
 
 // lowerPriority sets the process to the lowest scheduler priority
-func lowerPriority() error {
+func LowerPriority() error {
 	ph, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_SET_INFORMATION, false, uint32(os.Getpid()))
 	if err != nil {
 		return fmt.Errorf("windows.OpenProcess for pid: %v returned: %v", uint32(os.Getpid()), err)
