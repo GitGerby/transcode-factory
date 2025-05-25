@@ -1,21 +1,22 @@
 module github.com/gitgerby/transcode-factory
 
-go 1.22.0
-toolchain go1.24.1
+go 1.23.0
+
+toolchain go1.24.3
 
 require (
 	github.com/google/logger v1.1.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/kardianos/service v1.2.2
-	golang.org/x/sync v0.11.0
-	golang.org/x/sys v0.30.0
-	modernc.org/sqlite v1.34.5
+	golang.org/x/sync v0.14.0
+	golang.org/x/sys v0.33.0
+	modernc.org/sqlite v1.37.1
 
 )
 
 require (
 	github.com/ncruces/go-strftime v0.1.9 // indirect
-	golang.org/x/exp v0.0.0-20250207012021-f9890c6ad9f3 // indirect
+	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
 )
 
 require (
@@ -24,7 +25,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	modernc.org/libc v1.61.12 // indirect
+	modernc.org/libc v1.65.8 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.8.2 // indirect
+	modernc.org/memory v1.11.0 // indirect
 )
