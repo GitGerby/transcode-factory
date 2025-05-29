@@ -437,6 +437,7 @@ func main() {
 
 	flag.Parse()
 
+	tfConfig = config.ParseConfig(*configPath)
 	svcConfig := &service.Config{
 		Name:        "TranscodeFactory",
 		DisplayName: "Transcode factory service",
@@ -458,8 +459,6 @@ func main() {
 		}
 		return
 	}
-
-	tfConfig = config.ParseConfig(*configPath)
 
 	s.Run()
 }
