@@ -9,4 +9,6 @@ const (
 	defaultFfprobePath  = "/usr/bin/ffprobe"
 	defaultLogDirectory = "/var/log/transcodefactory"
 	defaultDBPath       = "/var/lib/transcodefactory/transcodefactory.db"
+
+	DefaultConfigPath = "/etc/transcodefactory/config.yaml"
 )

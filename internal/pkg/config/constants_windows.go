@@ -5,8 +5,10 @@ package config
 
 const (
 	// windows defaults
-	defaultWinFfmpegPath   = `c:\ffmpeg\ffmpeg.exe`
-	defaultWinFfprobePath  = `c:\ffmpeg\ffprobe.exe`
-	defaultWinLogDirectory = `c:\ProgramData\transcodefactory\logs`
-	defaultWinDBPath       = `c:\ProgramData\transcodefactory\transcoder.db`
+	defaultFfmpegPath   = `c:\ffmpeg\ffmpeg.exe`
+	defaultFfprobePath  = `c:\ffmpeg\ffprobe.exe`
+	defaultLogDirectory = `c:\ProgramData\transcodefactory\logs`
+	defaultDBPath       = `c:\ProgramData\transcodefactory\transcoder.db`
+
+	DefaultConfigPath = `C:\ProgramData\transcodefactory\config.yaml`
 )
