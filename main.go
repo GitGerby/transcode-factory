@@ -28,6 +28,7 @@ import (
 
 	"database/sql"
 
+	"github.com/gitgerby/transcode-factory/internal/pkg/config"
 	"github.com/gitgerby/transcode-factory/internal/pkg/priority"
 
 	"github.com/google/logger"
@@ -88,6 +89,7 @@ var (
 	ffprobebinary      string
 	transcode_log_path string
 	wsHub              *Hub
+	tfConfig           *config.TFConfig
 )
 
 func (p *program) Start(s service.Service) error {
@@ -431,6 +433,8 @@ func main() {
 	logger.Init("transcode-factory", true, true, io.Discard)
 
 	svcFlag := flag.String("service", "", "Control the system service.")
+	configPath := flag.String("config", config.DefaultConfigPath, "Path to the config file.")
+
 	flag.Parse()
 
 	svcConfig := &service.Config{
@@ -454,6 +458,8 @@ func main() {
 		}
 		return
 	}
+
+	tfConfig = config.ParseConfig(*configPath)
 
 	s.Run()
 }
