@@ -130,12 +130,8 @@ func (p *program) Run() {
 	// Find ffprobe binary to use
 	ffprobebinary = *tfConfig.FfprobePath
 
-	tflpenv := os.Getenv("TF_LOG_PATH")
-	if tflpenv != "" {
-		transcode_log_path = tflpenv
-	} else {
-		transcode_log_path = filepath.Join(os.Getenv("PROGRAMDATA"), "TranscodeFactory", "encoder_logs")
-	}
+	// Create log directory if it does not exist
+	transcode_log_path = *tfConfig.LogDirectory
 	if err := os.MkdirAll(transcode_log_path, 0644); err != nil {
 		logger.Errorf("failed to create transcode log directory: %v", err)
 	}
