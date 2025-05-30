@@ -125,22 +125,10 @@ func (p *program) Run() {
 	}
 
 	// Find ffmpeg binary to use
-	ffmenv := os.Getenv("TF_FFMPEG")
-	if ffmenv != "" {
-		ffmpegbinary = ffmenv
-	} else {
-		// default to using ffmpeg from PATH
-		ffmpegbinary = "ffmpeg.exe"
-	}
+	ffmpegbinary = *tfConfig.FfmpegPath
 
 	// Find ffprobe binary to use
-	ffpenv := os.Getenv("TF_FFPROBE")
-	if ffpenv != "" {
-		ffprobebinary = ffpenv
-	} else {
-		// default to using ffmpeg from PATH
-		ffprobebinary = "ffprobe.exe"
-	}
+	ffprobebinary = *tfConfig.FfprobePath
 
 	tflpenv := os.Getenv("TF_LOG_PATH")
 	if tflpenv != "" {
