@@ -191,6 +191,7 @@ func (h *Hub) feedSockets() {
 				logger.Errorf("failed to query for log files: %v", err)
 				continue
 			}
+
 			wsu.LogMessages, err = processLogRows(lf)
 			if err != nil {
 				logger.Errorf("could not get log tails: %v", err)
@@ -229,7 +230,7 @@ func processLogRows(rows *sql.Rows) (map[int]string, error) {
 		}
 		logMessages[row.id] = m
 	}
-	if err != nil && err != sql.ErrNoRows {
+	if rows.Err() != nil && rows.Err() != sql.ErrNoRows {
 		logger.Errorf("failed processing log rows: %v", err)
 		return nil, err
 	}
