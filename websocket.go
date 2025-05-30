@@ -179,7 +179,7 @@ func (h *Hub) feedSockets() {
 			// Coalesce multiple refresh events to one.
 			time.Sleep(500 * time.Millisecond)
 			qd := len(h.refresh)
-			for i := 0; i < qd; i++ {
+			for range qd {
 				<-h.refresh
 			}
 			h.broadcast <- wsu
