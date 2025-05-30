@@ -437,7 +437,18 @@ func main() {
 
 	flag.Parse()
 
-	tfConfig = config.ParseConfig(*configPath)
+	if _, err := os.Stat(*configPath); err == os.ErrNotExist {
+		err = config.DefaultConfiguration().DumpConfig(*configPath)
+		if err != nil {
+			logger.Fatalf("failed to create default config: %q", err)
+		}
+	}
+
+	err := tfConfig.Parse(*configPath)
+	if err != nil {
+		logger.Fatalf("failed to parse config: %q", err)
+	}
+
 	svcConfig := &service.Config{
 		Name:        "TranscodeFactory",
 		DisplayName: "Transcode factory service",
