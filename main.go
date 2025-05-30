@@ -226,15 +226,8 @@ func initDbTables(db *sql.DB) error {
 
 func mainLoop() {
 	tg := new(errgroup.Group)
-	el := os.Getenv("TF_TRANSCODELIMIT")
-	transcodeLimit, err := strconv.Atoi(el)
-	if err != nil {
-		if el != "" {
-			logger.Warningf("TF_TRANSCODELIMIT not an int: %v", err)
-		}
-		transcodeLimit = 1
-	}
-	tg.SetLimit(transcodeLimit)
+
+	tg.SetLimit(*tfConfig.TranscodeLimit)
 
 	for {
 		// pull the next available job
