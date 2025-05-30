@@ -302,7 +302,7 @@ func cropManager() {
 	cg := new(errgroup.Group)
 
 	cg.SetLimit(*tfConfig.CropLimit)
-	logger.Infof("crop detect thread listening; limit %v simultaneous jobs", cgl)
+	logger.Infof("crop detect thread listening; limit %v simultaneous jobs", *tfConfig.CropLimit)
 
 	for {
 		tj, err := pullNextCrop()
@@ -342,7 +342,7 @@ func copyManager() {
 	cwg := new(errgroup.Group)
 
 	cwg.SetLimit(*tfConfig.CopyLimit)
-	logger.Infof("copy manager waiting, max %d simultaneous jobs", cwgl)
+	logger.Infof("copy manager waiting, max %d simultaneous jobs", *tfConfig.CopyLimit)
 
 	for {
 		tj, err := pullNextCopy()
