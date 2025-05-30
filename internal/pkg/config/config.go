@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
@@ -16,47 +17,78 @@ type TFConfig struct {
 	LogDirectory   *string `yaml:"log_directory,omitempty"`
 }
 
-func ParseConfig(path string) *TFConfig {
+func (c *TFConfig) Parse(path string) error {
 	f, err := os.ReadFile(path)
 	if err != nil {
 		return nil
 	}
 
-	config := &TFConfig{}
-
-	err = yaml.Unmarshal(f, config)
+	err = yaml.Unmarshal(f, c)
 	if err != nil {
-		return nil
+		return err
 	}
 
-	if config.TranscodeLimit == nil {
-		config.TranscodeLimit = new(int)
-		*config.TranscodeLimit = 2
+	if c.TranscodeLimit == nil {
+		c.TranscodeLimit = new(int)
+		*c.TranscodeLimit = 2
 	}
-	if config.CropLimit == nil {
-		config.CropLimit = new(int)
-		*config.CropLimit = 2
+	if c.CropLimit == nil {
+		c.CropLimit = new(int)
+		*c.CropLimit = 2
 	}
-	if config.CopyLimit == nil {
-		config.CopyLimit = new(int)
-		*config.CopyLimit = 4
+	if c.CopyLimit == nil {
+		c.CopyLimit = new(int)
+		*c.CopyLimit = 4
 	}
-	if config.DBPath == nil {
-		config.DBPath = new(string)
-		*config.DBPath = defaultDBPath
+	if c.DBPath == nil {
+		c.DBPath = new(string)
+		*c.DBPath = defaultDBPath
 	}
-	if config.FfmpegPath == nil {
-		config.FfmpegPath = new(string)
-		*config.FfmpegPath = defaultFfmpegPath
+	if c.FfmpegPath == nil {
+		c.FfmpegPath = new(string)
+		*c.FfmpegPath = defaultFfmpegPath
 	}
-	if config.FfprobePath == nil {
-		config.FfprobePath = new(string)
-		*config.FfprobePath = defaultFfprobePath
+	if c.FfprobePath == nil {
+		c.FfprobePath = new(string)
+		*c.FfprobePath = defaultFfprobePath
 	}
-	if config.LogDirectory == nil {
-		config.LogDirectory = new(string)
-		*config.LogDirectory = defaultLogDirectory
+	if c.LogDirectory == nil {
+		c.LogDirectory = new(string)
+		*c.LogDirectory = defaultLogDirectory
+	}
+	return nil
+}
+
+func DefaultConfiguration() *TFConfig {
+	dc := new(TFConfig)
+	*dc.TranscodeLimit = 2
+	*dc.CropLimit = 2
+	*dc.CopyLimit = 4
+	*dc.DBPath = defaultDBPath
+	*dc.FfmpegPath = defaultFfmpegPath
+	*dc.FfprobePath = defaultFfprobePath
+	*dc.LogDirectory = defaultLogDirectory
+	return dc
+}
+
+func (c *TFConfig) DumpConfig(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0644); err != nil {
+		return err
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if err := f.Chmod(0644); err != nil {
+		return err
 	}
 
-	return config
+	b, err := yaml.Marshal(*c)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(b)
+	return err
 }
