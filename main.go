@@ -109,12 +109,8 @@ func (p *program) Run() {
 	ctx, stop_ctx = context.WithCancel(context.Background())
 
 	// Find and connect to the database
-	dbpenv := os.Getenv("TF_DB_PATH")
-	if dbpenv != "" {
-		databasefile = fmt.Sprintf("%s?_pragma=busy_timeout(5000)", dbpenv)
-	} else {
-		databasefile = filepath.Join(os.Getenv("PROGRAMDATA"), "TranscodeFactory", "transcodefactory.db?_pragma=busy_timeout(5000)")
-	}
+	databasefile = fmt.Sprintf("%s?_pragma=busy_timeout(5000)", *tfConfig.DBPath)
+
 	if err := os.MkdirAll(filepath.Dir(databasefile), 0644); err != nil {
 		logger.Fatalf("failed to create directory for database file: %v", err)
 	}
