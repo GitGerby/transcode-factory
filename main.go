@@ -301,12 +301,8 @@ func mainLoop() {
 
 func cropManager() {
 	cg := new(errgroup.Group)
-	cgl, err := strconv.Atoi(os.Getenv("TF_CROPLIMIT"))
-	if err != nil {
-		logger.Errorf("TF_CROPLIMIT not an int: %v", err)
-		cgl = 4
-	}
-	cg.SetLimit(cgl)
+
+	cg.SetLimit(*tfConfig.CropLimit)
 	logger.Infof("crop detect thread listening; limit %v simultaneous jobs", cgl)
 
 	for {
