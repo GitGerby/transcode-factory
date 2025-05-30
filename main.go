@@ -23,7 +23,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"database/sql"
@@ -341,14 +340,8 @@ func cropManager() {
 
 func copyManager() {
 	cwg := new(errgroup.Group)
-	// detect copy limit at run time.
-	cwgl, err := strconv.Atoi(os.Getenv("TF_COPYLIMIT"))
-	if err != nil {
-		logger.Errorf("TF_COPYLIMIT not an int: %v", err)
-		// default to 4 simultaneous copies
-		cwgl = 4
-	}
-	cwg.SetLimit(cwgl)
+
+	cwg.SetLimit(*tfConfig.CopyLimit)
 	logger.Infof("copy manager waiting, max %d simultaneous jobs", cwgl)
 
 	for {
