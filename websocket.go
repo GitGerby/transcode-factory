@@ -177,13 +177,14 @@ func (h *Hub) feedSockets() {
 		case wsu.RefreshNeeded = <-h.refresh:
 			logger.Info("received request to refresh statusz pages")
 			// Coalesce multiple refresh events to one.
-			time.Sleep(500 * time.Millisecond)
-			qd := len(h.refresh)
-			for range qd {
+			time.Sleep(250 * time.Millisecond)
+
+			for range len(h.refresh) {
 				<-h.refresh
 			}
 			h.broadcast <- wsu
 			wsu.RefreshNeeded = false
+
 		case <-rt.C:
 			lf, err := pstmt.Query()
 			if err != nil && err != sql.ErrNoRows {
