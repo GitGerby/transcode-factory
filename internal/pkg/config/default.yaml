@@ -1,7 +1,7 @@
 transcode_limit: 2
 crop_limit: 2
 copy_limit: 4
-db_path: C:\ProgramData\transcodefactory\transcodefactory.db
-ffmpeg_path: C:\ffmpeg\ffmpeg.exe
-ffprobe_path: C:\ffmpeg\ffprobe.exe
-log_directory: C:\ProgramData\transcodefactory\logs
+db_path: "/var/lib/transcodefactory/transcodefactory.db"
+ffmpeg_path: "/usr/bin/ffmpeg"
+ffprobe_path: "/usr/bin/ffprobe"
+log_directory: "/var/log/transcodefactory"

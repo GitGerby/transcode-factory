@@ -3,6 +3,10 @@
 
 package config
 
+import (
+	_ "embed"
+)
+
 const (
 	// windows defaults
 	defaultFfmpegPath   = `C:\ffmpeg\ffmpeg.exe`
@@ -12,3 +16,6 @@ const (
 
 	DefaultConfigPath = `C:\ProgramData\transcodefactory\config.yaml`
 )
+
+//go:embed default_windows.yaml
+var defaultConfig []byte

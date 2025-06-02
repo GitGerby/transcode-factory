@@ -3,6 +3,10 @@
 
 package config
 
+import (
+	_ "embed"
+)
+
 const (
 	// *nix & darwin defaults
 	defaultFfmpegPath   = "/usr/bin/ffmpeg"
@@ -12,3 +16,6 @@ const (
 
 	DefaultConfigPath = "/etc/transcodefactory/config.yaml"
 )
+
+//go:embed default.yaml
+var defaultConfig []byte

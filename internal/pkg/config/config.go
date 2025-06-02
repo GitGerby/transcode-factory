@@ -1,7 +1,6 @@
 package config
 
 import (
-	_ "embed"
 	"os"
 	"path/filepath"
 
@@ -18,8 +17,7 @@ type TFConfig struct {
 	LogDirectory   *string `yaml:"log_directory,omitempty"`
 }
 
-//go:embed default.yaml
-var defaultConfig []byte
+
 
 func (c *TFConfig) Parse(path string) error {
 	f, err := os.ReadFile(path)
@@ -79,6 +77,11 @@ func (c *TFConfig) Parse(path string) error {
 
 	return nil
 }
+
+func validateConfig(c *TFConfig) error {
+	if *c.CropLimit < 0 {
+		return errors.New
+	}
 
 func DefaultConfiguration() *TFConfig {
 	dc := new(TFConfig)
