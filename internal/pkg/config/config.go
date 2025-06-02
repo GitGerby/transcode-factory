@@ -1,6 +1,7 @@
 package config
 
 import (
+	_ "embed"
 	"os"
 	"path/filepath"
 
@@ -17,57 +18,74 @@ type TFConfig struct {
 	LogDirectory   *string `yaml:"log_directory,omitempty"`
 }
 
+//go:embed default.yaml
+var defaultConfig []byte
+
 func (c *TFConfig) Parse(path string) error {
 	f, err := os.ReadFile(path)
 	if err != nil {
 		return nil
 	}
 
-	err = yaml.Unmarshal(f, c)
+	tempConfig := new(TFConfig)
+
+	err = yaml.Unmarshal(f, tempConfig)
 	if err != nil {
 		return err
 	}
 
-	if c.TranscodeLimit == nil {
+	if tempConfig.TranscodeLimit == nil {
 		c.TranscodeLimit = new(int)
 		*c.TranscodeLimit = 2
+	} else {
+		c.TranscodeLimit = tempConfig.TranscodeLimit
 	}
-	if c.CropLimit == nil {
+	if tempConfig.CropLimit == nil {
 		c.CropLimit = new(int)
 		*c.CropLimit = 2
+	} else {
+		c.CropLimit = tempConfig.CropLimit
 	}
-	if c.CopyLimit == nil {
+	if tempConfig.CopyLimit == nil {
 		c.CopyLimit = new(int)
 		*c.CopyLimit = 4
+	} else {
+		c.CopyLimit = tempConfig.CopyLimit
 	}
-	if c.DBPath == nil {
+	if tempConfig.DBPath == nil {
 		c.DBPath = new(string)
 		*c.DBPath = defaultDBPath
+	} else {
+		c.DBPath = tempConfig.DBPath
 	}
-	if c.FfmpegPath == nil {
+	if tempConfig.FfmpegPath == nil {
 		c.FfmpegPath = new(string)
 		*c.FfmpegPath = defaultFfmpegPath
+	} else {
+		c.FfmpegPath = tempConfig.FfmpegPath
 	}
-	if c.FfprobePath == nil {
+	if tempConfig.FfprobePath == nil {
 		c.FfprobePath = new(string)
 		*c.FfprobePath = defaultFfprobePath
+	} else {
+		c.FfprobePath = tempConfig.FfprobePath
 	}
-	if c.LogDirectory == nil {
+	if tempConfig.LogDirectory == nil {
 		c.LogDirectory = new(string)
 		*c.LogDirectory = defaultLogDirectory
+	} else {
+		c.LogDirectory = tempConfig.LogDirectory
 	}
+
 	return nil
 }
 
 func DefaultConfiguration() *TFConfig {
 	dc := new(TFConfig)
-	*dc.TranscodeLimit = 2
-	*dc.CropLimit = 2
-	*dc.CopyLimit = 4
-	*dc.DBPath = defaultDBPath
-	*dc.FfmpegPath = defaultFfmpegPath
-	*dc.FfprobePath = defaultFfprobePath
-	*dc.LogDirectory = defaultLogDirectory
+	err := yaml.Unmarshal(defaultConfig, dc)
+	if err != nil {
+		panic(err)
+	}
 	return dc
 }
 

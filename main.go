@@ -88,7 +88,7 @@ var (
 	ffprobebinary      string
 	transcode_log_path string
 	wsHub              *Hub
-	tfConfig           *config.TFConfig
+	tfConfig           config.TFConfig
 )
 
 func (p *program) Start(s service.Service) error {
@@ -399,11 +399,13 @@ func main() {
 
 	flag.Parse()
 
-	if _, err := os.Stat(*configPath); err == os.ErrNotExist {
-		err = config.DefaultConfiguration().DumpConfig(*configPath)
+	if _, err := os.Stat(*configPath); errors.Is(err, os.ErrNotExist) {
+		err := config.DefaultConfiguration().DumpConfig(*configPath)
 		if err != nil {
 			logger.Fatalf("failed to create default config: %q", err)
 		}
+	} else if err != nil {
+		logger.Fatalf("failed to stat config file: %q", err)
 	}
 
 	err := tfConfig.Parse(*configPath)
