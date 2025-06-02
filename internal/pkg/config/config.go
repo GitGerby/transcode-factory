@@ -17,6 +17,12 @@ type TFConfig struct {
 	LogDirectory   *string `yaml:"log_directory,omitempty"`
 }
 
+const (
+	defaultTranscodeLimit = 2
+	defaultCropLimit      = 2
+	defaultCopyLimit      = 4
+)
+
 func (c *TFConfig) Parse(path string) error {
 	f, err := os.ReadFile(path)
 	if err != nil {
@@ -32,19 +38,19 @@ func (c *TFConfig) Parse(path string) error {
 
 	if tempConfig.TranscodeLimit == nil {
 		c.TranscodeLimit = new(int)
-		*c.TranscodeLimit = 2
+		*c.TranscodeLimit = defaultTranscodeLimit
 	} else {
 		c.TranscodeLimit = tempConfig.TranscodeLimit
 	}
 	if tempConfig.CropLimit == nil {
 		c.CropLimit = new(int)
-		*c.CropLimit = 2
+		*c.CropLimit = defaultCropLimit
 	} else {
 		c.CropLimit = tempConfig.CropLimit
 	}
 	if tempConfig.CopyLimit == nil {
 		c.CopyLimit = new(int)
-		*c.CopyLimit = 4
+		*c.CopyLimit = defaultCopyLimit
 	} else {
 		c.CopyLimit = tempConfig.CopyLimit
 	}
