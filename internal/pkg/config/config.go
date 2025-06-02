@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -25,6 +27,8 @@ const (
 	defaultCopyLimit      = 4
 )
 
+var YamlError = errors.New("error unmarshalling config file: ")
+
 // Parse reads the config file and sets the config values
 func (c *TFConfig) Parse(path string) error {
 	// This is mostly a wrapper around loadConfig to allow for easier testing.
@@ -47,7 +51,7 @@ func (c *TFConfig) loadConfig(configFile fs.File) error {
 
 	err = yaml.Unmarshal(f, tempConfig)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", YamlError, err)
 	}
 
 	if tempConfig.TranscodeLimit == nil {
@@ -105,7 +109,7 @@ func DefaultConfiguration() *TFConfig {
 	return dc
 }
 
-func (c *TFConfig) DumpConfig(path string) error {
+func (c *TFConfig) WriteConfig(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0644); err != nil {
 		return err
 	}

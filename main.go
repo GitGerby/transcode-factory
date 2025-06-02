@@ -403,7 +403,7 @@ func main() {
 	// test the config file specified by the configPath flag if it doesn't exist
 	// generate a default config and write it to the location specified
 	if _, err := os.Stat(*configPath); errors.Is(err, os.ErrNotExist) {
-		err := config.DefaultConfiguration().DumpConfig(*configPath)
+		err := config.DefaultConfiguration().WriteConfig(*configPath)
 		if err != nil {
 			logger.Fatalf("failed to create default config: %q", err)
 		}

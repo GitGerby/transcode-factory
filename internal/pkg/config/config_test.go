@@ -2,10 +2,12 @@ package config
 
 import (
 	"embed"
-	_ "embed"
+	"errors"
 	"io/fs"
 	"reflect"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 //go:embed test_data/*
@@ -67,6 +69,7 @@ func TestLoadConfig(t *testing.T) {
 		name     string
 		testFile fs.File
 		want     *TFConfig
+		err      error
 	}{
 		{
 			name:     "default configuration",
@@ -78,12 +81,31 @@ func TestLoadConfig(t *testing.T) {
 			testFile: testFile("test_data/empty.yaml", t),
 			want:     buildFromConstants(t),
 		},
+		{
+			name:     "invalid config file",
+			testFile: testFile("test_data/invalid.yaml", t),
+			want:     &TFConfig{},
+			err:      YamlError,
+		},
 	}
 	for _, tt := range tests {
 		conf := new(TFConfig)
 		t.Run(tt.name, func(t *testing.T) {
-			if conf.loadConfig(tt.testFile); !reflect.DeepEqual(conf, tt.want) {
-				t.Errorf("loadConfig() = %v, want %v", conf, tt.want)
+			err := conf.loadConfig(tt.testFile)
+			diff := cmp.Diff(conf, tt.want)
+			if diff != "" {
+				t.Errorf("loadConfig() diff: %v", cmp.Diff(conf, tt.want))
+			}
+			if err == nil && tt.err != nil {
+				t.Errorf("loadConfig() err = <nil>, want %v", tt.err)
+			}
+			if err != nil && tt.err == nil {
+				t.Errorf("loadConfig() err = %v, want <nil>", err)
+			}
+			if err != nil && tt.err != nil {
+				if !errors.Is(err, tt.err) {
+					t.Errorf("loadConfig() err = %v, want %v", err, tt.err)
+				}
 			}
 		})
 	}
