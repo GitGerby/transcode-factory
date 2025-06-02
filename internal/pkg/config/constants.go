@@ -14,7 +14,8 @@ const (
 	defaultLogDirectory = "/var/log/transcodefactory"
 	defaultDBPath       = "/var/lib/transcodefactory/transcodefactory.db"
 
-	DefaultConfigPath = "/etc/transcodefactory/config.yaml"
+	DefaultConfigPath     = "/etc/transcodefactory/config.yaml"
+	DefaultConfigTestFile = "default.yaml"
 )
 
 //go:embed default.yaml

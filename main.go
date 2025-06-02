@@ -399,6 +399,8 @@ func main() {
 
 	flag.Parse()
 
+	// test the config file specified by the configPath flag if it doesn't exist
+	// generate a default config and write it to the location specified
 	if _, err := os.Stat(*configPath); errors.Is(err, os.ErrNotExist) {
 		err := config.DefaultConfiguration().DumpConfig(*configPath)
 		if err != nil {
@@ -408,6 +410,7 @@ func main() {
 		logger.Fatalf("failed to stat config file: %q", err)
 	}
 
+	// load the config file
 	err := tfConfig.Parse(*configPath)
 	if err != nil {
 		logger.Fatalf("failed to parse config: %q", err)

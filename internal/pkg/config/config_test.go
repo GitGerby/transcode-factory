@@ -1,10 +1,26 @@
 package config
 
 import (
+	"embed"
 	_ "embed"
+	"io/fs"
 	"reflect"
 	"testing"
 )
+
+//go:embed test_data/*
+//go:embed default.yaml
+//go:embed default_windows.yaml
+var efs embed.FS
+
+func testFile(path string, t *testing.T) fs.File {
+	t.Helper()
+	f, err := efs.Open(path)
+	if err != nil {
+		t.Fatalf("failed to open file %s: %v", path, err)
+	}
+	return f
+}
 
 func buildFromConstants(t *testing.T) *TFConfig {
 	t.Helper()
@@ -41,6 +57,33 @@ func TestDefaultConfiguration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := DefaultConfiguration(); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("DefaultConfiguration() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		testFile fs.File
+		want     *TFConfig
+	}{
+		{
+			name:     "default configuration",
+			testFile: testFile(DefaultConfigTestFile, t),
+			want:     buildFromConstants(t),
+		},
+		{
+			name:     "empty config file",
+			testFile: testFile("test_data/empty.yaml", t),
+			want:     buildFromConstants(t),
+		},
+	}
+	for _, tt := range tests {
+		conf := new(TFConfig)
+		t.Run(tt.name, func(t *testing.T) {
+			if conf.loadConfig(tt.testFile); !reflect.DeepEqual(conf, tt.want) {
+				t.Errorf("loadConfig() = %v, want %v", conf, tt.want)
 			}
 		})
 	}

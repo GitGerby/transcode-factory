@@ -1,6 +1,8 @@
 package config
 
 import (
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -23,10 +25,22 @@ const (
 	defaultCopyLimit      = 4
 )
 
+// Parse reads the config file and sets the config values
 func (c *TFConfig) Parse(path string) error {
-	f, err := os.ReadFile(path)
+	// This is mostly a wrapper around loadConfig to allow for easier testing.
+	f, err := os.Open(path)
 	if err != nil {
-		return nil
+		return err
+	}
+	defer f.Close()
+	return c.loadConfig(f)
+}
+
+// loadConfig reads the config file and sets the config values
+func (c *TFConfig) loadConfig(configFile fs.File) error {
+	f, err := io.ReadAll(configFile)
+	if err != nil {
+		return err
 	}
 
 	tempConfig := new(TFConfig)

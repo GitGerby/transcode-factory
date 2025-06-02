@@ -14,7 +14,8 @@ const (
 	defaultLogDirectory = `C:\ProgramData\transcodefactory\logs`
 	defaultDBPath       = `C:\ProgramData\transcodefactory\transcodefactory.db`
 
-	DefaultConfigPath = `C:\ProgramData\transcodefactory\config.yaml`
+	DefaultConfigPath     = `C:\ProgramData\transcodefactory\config.yaml`
+	DefaultConfigTestFile = `default_windows.yaml`
 )
 
 //go:embed default_windows.yaml
