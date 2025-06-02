@@ -85,7 +85,7 @@ func TestLoadConfig(t *testing.T) {
 			name:     "invalid config file",
 			testFile: testFile("test_data/invalid.yaml", t),
 			want:     &TFConfig{},
-			err:      YamlError,
+			err:      ErrYamlError,
 		},
 	}
 	for _, tt := range tests {

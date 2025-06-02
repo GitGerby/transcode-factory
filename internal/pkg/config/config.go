@@ -27,7 +27,7 @@ const (
 	defaultCopyLimit      = 4
 )
 
-var YamlError = errors.New("error unmarshalling config file: ")
+var ErrYamlError = errors.New("error unmarshalling config file: ")
 
 // Parse reads the config file and sets the config values
 func (c *TFConfig) Parse(path string) error {
@@ -51,7 +51,7 @@ func (c *TFConfig) loadConfig(configFile fs.File) error {
 
 	err = yaml.Unmarshal(f, tempConfig)
 	if err != nil {
-		return fmt.Errorf("%w: %w", YamlError, err)
+		return fmt.Errorf("%w: %w", ErrYamlError, err)
 	}
 
 	if tempConfig.TranscodeLimit == nil {
