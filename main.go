@@ -294,7 +294,8 @@ func mainLoop() {
 			logger.Infof("job id %d: complete", tj.Id)
 			return nil
 		})
-		time.Sleep(100 * time.Millisecond) // Give time for the job to start
+		// Give time for the job to start
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
