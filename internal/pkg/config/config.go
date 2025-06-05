@@ -19,12 +19,14 @@ type TFConfig struct {
 	FfmpegPath     *string `yaml:"ffmpeg_path,omitempty"`
 	FfprobePath    *string `yaml:"ffprobe_path,omitempty"`
 	LogDirectory   *string `yaml:"log_directory,omitempty"`
+	ListenPort     *int    `yaml:"listen_port,omitempty"`
 }
 
 const (
 	defaultTranscodeLimit = 2
 	defaultCropLimit      = 2
 	defaultCopyLimit      = 4
+	defaultListenPort     = 51218
 )
 
 var ErrYamlError = errors.New("error unmarshalling config file: ")
@@ -95,6 +97,12 @@ func (c *TFConfig) loadConfig(configFile fs.File) error {
 		*c.LogDirectory = defaultLogDirectory
 	} else {
 		c.LogDirectory = tempConfig.LogDirectory
+	}
+	if tempConfig.ListenPort == nil {
+		c.ListenPort = new(int)
+		*c.ListenPort = defaultListenPort
+	} else {
+		c.ListenPort = tempConfig.ListenPort
 	}
 
 	return nil

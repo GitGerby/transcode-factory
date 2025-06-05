@@ -34,6 +34,7 @@ func buildFromConstants(t *testing.T) *TFConfig {
 		FfmpegPath:     new(string),
 		FfprobePath:    new(string),
 		LogDirectory:   new(string),
+		ListenPort:     new(int),
 	}
 	*df.TranscodeLimit = defaultTranscodeLimit
 	*df.CropLimit = defaultCropLimit
@@ -42,6 +43,7 @@ func buildFromConstants(t *testing.T) *TFConfig {
 	*df.FfmpegPath = defaultFfmpegPath
 	*df.FfprobePath = defaultFfprobePath
 	*df.LogDirectory = defaultLogDirectory
+	*df.ListenPort = defaultListenPort
 	return df
 }
 

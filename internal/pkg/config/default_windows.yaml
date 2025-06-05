@@ -5,3 +5,4 @@ db_path: C:\ProgramData\transcodefactory\transcodefactory.db
 ffmpeg_path: C:\ffmpeg\ffmpeg.exe
 ffprobe_path: C:\ffmpeg\ffprobe.exe
 log_directory: C:\ProgramData\transcodefactory\logs
+listen_port: 51218

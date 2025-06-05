@@ -166,7 +166,7 @@ func launchApi() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/statusz", http.StatusFound)
 	})
-	go http.ListenAndServe(":51218", nil)
+	go http.ListenAndServe(fmt.Sprintf(":%d", *tfConfig.ListenPort), nil)
 }
 
 // initDbTables sets up the database schema by creating tables if they do not exist.
@@ -193,7 +193,7 @@ func initDbTables(db *sql.DB) error {
     job_state TEXT,
 		FOREIGN KEY (id) REFERENCES transcode_queue (id)
   );
-  
+
   CREATE TABLE IF NOT EXISTS completed_jobs (
     id INTEGER PRIMARY KEY,
     source TEXT,
@@ -209,7 +209,7 @@ func initDbTables(db *sql.DB) error {
 		width INTEGER,
 		height INTEGER,
 		duration TEXT,
-		FOREIGN KEY (id) REFERENCES transcode_queue (id)
+	FOREIGN KEY (id) REFERENCES transcode_queue (id)
 	);
 
   CREATE TABLE IF NOT EXISTS log_files (
