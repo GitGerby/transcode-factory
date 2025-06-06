@@ -20,6 +20,7 @@ type TFConfig struct {
 	FfprobePath    *string `yaml:"ffprobe_path,omitempty"`
 	LogDirectory   *string `yaml:"log_directory,omitempty"`
 	ListenPort     *int    `yaml:"listen_port,omitempty"`
+	ListenAddress  *string `yaml:"listen_address,omitempty"`
 }
 
 const (
@@ -27,6 +28,7 @@ const (
 	defaultCropLimit      = 2
 	defaultCopyLimit      = 4
 	defaultListenPort     = 51218
+	defaultListenAddress  = ""
 )
 
 var ErrYamlError = errors.New("error unmarshalling config file: ")
@@ -103,6 +105,12 @@ func (c *TFConfig) loadConfig(configFile fs.File) error {
 		*c.ListenPort = defaultListenPort
 	} else {
 		c.ListenPort = tempConfig.ListenPort
+	}
+	if tempConfig.ListenAddress == nil {
+		c.ListenAddress = new(string)
+		*c.ListenAddress = defaultListenAddress
+	} else {
+		c.ListenAddress = tempConfig.ListenAddress
 	}
 
 	return nil

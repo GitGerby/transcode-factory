@@ -166,7 +166,7 @@ func launchApi() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/statusz", http.StatusFound)
 	})
-	go http.ListenAndServe(fmt.Sprintf(":%d", *tfConfig.ListenPort), nil)
+	go http.ListenAndServe(fmt.Sprintf("%s:%d", *tfConfig.ListenAddress, *tfConfig.ListenPort), nil)
 }
 
 // initDbTables sets up the database schema by creating tables if they do not exist.

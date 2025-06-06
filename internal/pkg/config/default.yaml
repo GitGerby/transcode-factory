@@ -1,8 +1,9 @@
 transcode_limit: 2
 crop_limit: 2
 copy_limit: 4
-db_path: "/var/lib/transcodefactory/transcodefactory.db"
-ffmpeg_path: "/usr/bin/ffmpeg"
-ffprobe_path: "/usr/bin/ffprobe"
-log_directory: "/var/log/transcodefactory"
+db_path: '/var/lib/transcodefactory/transcodefactory.db'
+ffmpeg_path: '/usr/bin/ffmpeg'
+ffprobe_path: '/usr/bin/ffprobe'
+log_directory: '/var/log/transcodefactory'
 listen_port: 51218
+listen_address: ''

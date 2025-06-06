@@ -26,6 +26,7 @@ func testFile(path string, t *testing.T) fs.File {
 
 func buildFromConstants(t *testing.T) *TFConfig {
 	t.Helper()
+
 	df := &TFConfig{
 		TranscodeLimit: new(int),
 		CropLimit:      new(int),
@@ -35,7 +36,9 @@ func buildFromConstants(t *testing.T) *TFConfig {
 		FfprobePath:    new(string),
 		LogDirectory:   new(string),
 		ListenPort:     new(int),
+		ListenAddress:  new(string),
 	}
+
 	*df.TranscodeLimit = defaultTranscodeLimit
 	*df.CropLimit = defaultCropLimit
 	*df.CopyLimit = defaultCopyLimit
@@ -44,6 +47,7 @@ func buildFromConstants(t *testing.T) *TFConfig {
 	*df.FfprobePath = defaultFfprobePath
 	*df.LogDirectory = defaultLogDirectory
 	*df.ListenPort = defaultListenPort
+	*df.ListenAddress = defaultListenAddress
 	return df
 }
 
