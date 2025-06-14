@@ -122,7 +122,6 @@ func (h *Hub) run() {
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
-				logger.Infof("unregistered client %#v", client)
 			}
 		case message := <-h.broadcast:
 			// drain the queue
