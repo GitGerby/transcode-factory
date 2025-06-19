@@ -24,6 +24,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gitgerby/transcode-factory/internal/pkg/ffwrap"
+
 	"github.com/google/logger"
 )
 
@@ -36,17 +38,17 @@ import (
 func pullNextCrop() (TranscodeJob, error) {
 	niq := `
   SELECT id, source, video_filters
-  FROM transcode_queue 
+  FROM transcode_queue
 	WHERE id NOT IN (SELECT id FROM completed_jobs)
 		AND id NOT IN (SELECT id FROM active_jobs)
-		AND autocrop = 1 
+		AND autocrop = 1
 		AND crop_complete != 1
 		AND codec != 'copy'
 	ORDER BY id ASC
 	LIMIT 1;`
 
 	tj := TranscodeJob{
-		JobDefinition: TranscodeRequest{Autocrop: true},
+		JobDefinition: ffwrap.TranscodeRequest{Autocrop: true},
 	}
 	r := db.QueryRow(niq)
 	err := r.Scan(&tj.Id, &tj.JobDefinition.Source, &tj.JobDefinition.Video_filters)
@@ -64,7 +66,7 @@ func pullNextCrop() (TranscodeJob, error) {
 // waiting for autocrop. The job details returned as a TranscodeJob struct.
 func pullNextTranscode() (TranscodeJob, error) {
 	niq := `
-  SELECT id, source, destination, IFNULL(crf,18) as crf, srt_files, IFNULL(autocrop,1) as autocrop, video_filters, audio_filters, codec 
+  SELECT id, source, destination, IFNULL(crf,18) as crf, srt_files, IFNULL(autocrop,1) as autocrop, video_filters, audio_filters, codec
   FROM transcode_queue
   WHERE id NOT IN (SELECT id FROM completed_jobs)
 	AND id NOT IN (SELECT id FROM active_jobs)
@@ -91,7 +93,7 @@ func pullNextTranscode() (TranscodeJob, error) {
 
 func pullNextCopy() (TranscodeJob, error) {
 	niq := `
-  SELECT id, source, destination, IFNULL(crf,18) as crf, srt_files, IFNULL(autocrop,1) as autocrop, video_filters, audio_filters, codec 
+  SELECT id, source, destination, IFNULL(crf,18) as crf, srt_files, IFNULL(autocrop,1) as autocrop, video_filters, audio_filters, codec
   FROM transcode_queue
   WHERE id NOT IN (SELECT id FROM completed_jobs)
 	AND id NOT IN (SELECT id FROM active_jobs)
@@ -135,20 +137,20 @@ func updateJobStatus(id int, js JobState) error {
 }
 
 // querySourceTable returns the media metadata or an error for a given job.
-func querySourceTable(id int) (MediaMetadata, error) {
+func querySourceTable(id int) (ffwrap.MediaMetadata, error) {
 	tx, err := db.Begin()
 	if err != nil {
-		return MediaMetadata{}, fmt.Errorf("failed to begin transaction: %q", err)
+		return ffwrap.MediaMetadata{}, fmt.Errorf("failed to begin transaction: %q", err)
 	}
 	defer tx.Rollback()
 	// IFNULL --> 8k resolution this ensures crops will trigger on basically any video if we don't detect the correct size
 	r := tx.QueryRow("SELECT codec, IFNULL(width,7680), IFNULL(height,4320) FROM source_metadata WHERE id = ?", id)
-	var m MediaMetadata
+	var m ffwrap.MediaMetadata
 	err = r.Scan(&m.Codec, &m.Width, &m.Height)
 	if err == sql.ErrNoRows {
-		return MediaMetadata{}, err
+		return ffwrap.MediaMetadata{}, err
 	} else if err != nil {
-		return MediaMetadata{}, fmt.Errorf("failed to parse db response:%q", err)
+		return ffwrap.MediaMetadata{}, fmt.Errorf("failed to parse db response:%q", err)
 	}
 	return m, tx.Commit()
 }
@@ -186,7 +188,7 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 		return fmt.Errorf("failed to query source file for index %q: %q", tj.Id, err)
 	}
 
-	fc, err := probeMetadata(s)
+	fc, err := ffwrap.ProbeMetadata(ctx, s)
 	if err != nil {
 		return fmt.Errorf("metadata probe returned: %q", err)
 	}
@@ -209,7 +211,7 @@ func compileVF(tj *TranscodeJob) error {
 	var cropFilter string
 	if tj.JobDefinition.Autocrop {
 		var err error
-		cropFilter, err = detectCrop(tj.JobDefinition.Source)
+		cropFilter, err = ffwrap.DetectCrop(ctx, tj.JobDefinition.Source)
 		if err != nil {
 			return err
 		}
@@ -269,8 +271,12 @@ func transcodeMedia(tj *TranscodeJob) ([]string, error) {
 	if err := createDestinationParent(tj.JobDefinition.Destination); err != nil {
 		return nil, err
 	}
+	err := registerLogFile(tj)
+	if err != nil {
+		return nil, err
+	}
 	// run the transcoder
-	return ffmpegTranscode(*tj)
+	return ffwrap.FfmpegTranscode(ctx, tj.JobDefinition)
 }
 
 func finishJob(tj *TranscodeJob, args []string) error {
@@ -310,22 +316,22 @@ func finishJob(tj *TranscodeJob, args []string) error {
 
 // registerLogFile registers a log file path for a given job ID.
 // It inserts or replaces the file path in the 'log_files' table.
-func registerLogFile(tj TranscodeJob) (*os.File, error) {
-	_, fp := filepath.Split(tj.JobDefinition.Destination)
-	logdest := filepath.Join(transcode_log_path, fmt.Sprintf("%s_%d.log", fp, time.Now().UnixNano()))
+func registerLogFile(tj *TranscodeJob) error {
+	fp := filepath.Base(tj.JobDefinition.Destination)
+	tj.JobDefinition.LogDestination = filepath.Join(transcode_log_path, fmt.Sprintf("%s_%d.log", fp, time.Now().UnixNano()))
 
-	log, err := os.Create(logdest)
+	err := os.MkdirAll(filepath.Dir(tj.JobDefinition.LogDestination), 0644)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create log file: %v", err)
+		return fmt.Errorf("could not create directory for encoder log: %w", err)
 	}
 
 	_, err = db.Exec(`
 		INSERT OR REPLACE INTO log_files(id, logfile)
 		VALUES(?,?)
-	`, tj.Id, logdest)
+	`, tj.Id, tj.JobDefinition.LogDestination)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return log, nil
+	return nil
 }

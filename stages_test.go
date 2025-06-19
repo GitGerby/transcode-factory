@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/gitgerby/transcode-factory/internal/pkg/ffwrap"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -107,7 +108,7 @@ func TestPullNextTranscode(t *testing.T) {
 			},
 			expectedResult: TranscodeJob{
 				Id: 1,
-				JobDefinition: TranscodeRequest{
+				JobDefinition: ffwrap.TranscodeRequest{
 					Source:        "/path/to/source1.mkv",
 					Destination:   "/path/to/destination1.mkv",
 					Srt_files:     []string{"srt_file1"},
@@ -127,7 +128,7 @@ func TestPullNextTranscode(t *testing.T) {
 			},
 			expectedResult: TranscodeJob{
 				Id: 2,
-				JobDefinition: TranscodeRequest{
+				JobDefinition: ffwrap.TranscodeRequest{
 					Source:        "/path/to/source2.mkv",
 					Destination:   "/path/to/destination2.mkv",
 					Srt_files:     []string{"srt_file2"},
@@ -188,7 +189,7 @@ func TestPullNextCrop(t *testing.T) {
 			},
 			expectedResult: TranscodeJob{
 				Id: 1,
-				JobDefinition: TranscodeRequest{
+				JobDefinition: ffwrap.TranscodeRequest{
 					Source:        "/path/to/source1.mkv",
 					Video_filters: "",
 					Autocrop:      true,
@@ -245,7 +246,7 @@ func TestPullNextCopy(t *testing.T) {
 			},
 			expectedResult: TranscodeJob{
 				Id: 1,
-				JobDefinition: TranscodeRequest{
+				JobDefinition: ffwrap.TranscodeRequest{
 					Source:        "/path/to/source1.mkv",
 					Destination:   "/path/to/destination1.mkv",
 					Srt_files:     []string{"srt_file1"},
@@ -265,7 +266,7 @@ func TestPullNextCopy(t *testing.T) {
 			},
 			expectedResult: TranscodeJob{
 				Id: 2,
-				JobDefinition: TranscodeRequest{
+				JobDefinition: ffwrap.TranscodeRequest{
 					Source:        "/path/to/source2.mkv",
 					Destination:   "/path/to/destination2.mkv",
 					Srt_files:     []string{"srt_file2"},
@@ -303,14 +304,14 @@ func TestQuerySourceTable(t *testing.T) {
 		desc           string
 		setup          func()
 		jobId          int
-		expectedResult MediaMetadata
+		expectedResult ffwrap.MediaMetadata
 		expectedError  error
 	}{
 		{
 			desc:           "empty",
 			setup:          func() {},
 			jobId:          1,
-			expectedResult: MediaMetadata{},
+			expectedResult: ffwrap.MediaMetadata{},
 			expectedError:  sql.ErrNoRows,
 		},
 		{
@@ -319,7 +320,7 @@ func TestQuerySourceTable(t *testing.T) {
 				insertQueuedJob(t, 2, "libx265")
 			},
 			jobId:          1,
-			expectedResult: MediaMetadata{},
+			expectedResult: ffwrap.MediaMetadata{},
 			expectedError:  sql.ErrNoRows,
 		},
 		{
@@ -328,7 +329,7 @@ func TestQuerySourceTable(t *testing.T) {
 				insertQueuedJob(t, 1, "libx265")
 			},
 			jobId: 1,
-			expectedResult: MediaMetadata{
+			expectedResult: ffwrap.MediaMetadata{
 				Width:  7680,
 				Height: 4320,
 				Codec:  "h264",

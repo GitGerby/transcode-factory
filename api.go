@@ -22,6 +22,7 @@ import (
 
 	template "html/template"
 
+	"github.com/gitgerby/transcode-factory/internal/pkg/ffwrap"
 	"github.com/google/logger"
 	"github.com/gorilla/websocket"
 )
@@ -40,8 +41,8 @@ var upgrader = websocket.Upgrader{
 
 type PageQueueInfo struct {
 	Id            int
-	JobDefinition TranscodeRequest
-	SourceMeta    MediaMetadata
+	JobDefinition ffwrap.TranscodeRequest
+	SourceMeta    ffwrap.MediaMetadata
 	State         JobState
 	CropState     string
 }
@@ -59,7 +60,7 @@ func queryQueued() ([]PageQueueInfo, error) {
 	var srtJsonBlob []byte
 
 	q, err := tx.Query(`
-  SELECT id, 
+  SELECT id,
 		source,
 		destination,
 		codec,
@@ -70,7 +71,7 @@ func queryQueued() ([]PageQueueInfo, error) {
 			WHEN autocrop IS NULL THEN 'pending'
 			ELSE 'disabled'
 		END AS autocrop,
-		srt_files 
+		srt_files
   FROM transcode_queue
 	WHERE id not in (SELECT id FROM active_jobs)
   ORDER BY id ASC
@@ -109,7 +110,7 @@ func queryActive() ([]TranscodeJob, error) {
 	var activeJobs []TranscodeJob
 
 	a, err := tx.Query(`
-	SELECT 
+	SELECT
 		transcode_queue.id,
 		source,
 		destination,
@@ -121,8 +122,8 @@ func queryActive() ([]TranscodeJob, error) {
 		IFNULL(transcode_queue.codec, 'libx265') as destination_codec,
 		IFNULL(source_metadata.duration, 'unknown') as duration
 	FROM transcode_queue
-		JOIN (active_jobs 
-			LEFT JOIN source_metadata 
+		JOIN (active_jobs
+			LEFT JOIN source_metadata
 				ON source_metadata.id = active_jobs.id)
 			ON transcode_queue.id = active_jobs.id`)
 	if err != nil {
@@ -179,11 +180,11 @@ func statuszHandler(w http.ResponseWriter, statuszTemplate string) {
 }
 
 // addHandler handles incoming HTTP requests to add a new transcode job to the queue.
-// It decodes the JSON request body into a TranscodeRequest struct, validates the required fields,
+// It decodes the JSON request body into a ffwrap.TranscodeRequest struct, validates the required fields,
 // prepares and executes an SQL statement to insert the job into the database, and sends a response with the job ID.
 // If any error occurs during these steps, it logs the error or responds with an HTTP error status code.
 func addHandler(w http.ResponseWriter, req *http.Request, refreshChannel chan<- bool) {
-	var j TranscodeRequest
+	var j ffwrap.TranscodeRequest
 	err := json.NewDecoder(req.Body).Decode(&j)
 	if err != nil {
 		logger.Errorf("failed to decode request: %v", err)
@@ -235,12 +236,12 @@ func addHandler(w http.ResponseWriter, req *http.Request, refreshChannel chan<- 
 }
 
 // bulkAddHandler handles incoming HTTP requests to add multiple new transcode jobs to the queue in bulk.
-// It decodes the JSON request body into a slice of TranscodeRequest structs, validates each job's required fields,
+// It decodes the JSON request body into a slice of ffwrap.TranscodeRequest structs, validates each job's required fields,
 // prepares and executes an SQL statement to insert each job into the database within a transaction. If all jobs are successfully inserted,
 // it commits the transaction and responds with a map of the inserted jobs in JSON format along with their IDs.
 // If any error occurs during these steps, it rolls back the transaction, logs the error, or responds with an HTTP error status code.
 func bulkAddHandler(w http.ResponseWriter, req *http.Request, refreshChannel chan<- bool) {
-	var jobs []TranscodeRequest
+	var jobs []ffwrap.TranscodeRequest
 	err := json.NewDecoder(req.Body).Decode(&jobs)
 	if err != nil {
 		logger.Errorf("failed to decode request: %v", err)
@@ -265,7 +266,7 @@ func bulkAddHandler(w http.ResponseWriter, req *http.Request, refreshChannel cha
 		return
 	}
 
-	insertedJobs := make(map[int64]TranscodeRequest)
+	insertedJobs := make(map[int64]ffwrap.TranscodeRequest)
 
 	for _, j := range jobs {
 		if j.Source == "" || j.Destination == "" {

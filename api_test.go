@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gitgerby/transcode-factory/internal/pkg/ffwrap"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -243,7 +244,7 @@ func TestQueryQueued(t *testing.T) {
 			desc: "autocrop item in queue",
 			testValues: []TranscodeJob{{
 				Id: 1,
-				JobDefinition: TranscodeRequest{
+				JobDefinition: ffwrap.TranscodeRequest{
 					Source:      "/path/to/source.mkv",
 					Destination: "/path/to/destination.mkv",
 					Crf:         18,
@@ -254,7 +255,7 @@ func TestQueryQueued(t *testing.T) {
 			expectedQueue: []PageQueueInfo{
 				{
 					Id: 1,
-					JobDefinition: TranscodeRequest{
+					JobDefinition: ffwrap.TranscodeRequest{
 						Source:      "/path/to/source.mkv",
 						Destination: "/path/to/destination.mkv",
 						Crf:         18,
@@ -268,7 +269,7 @@ func TestQueryQueued(t *testing.T) {
 			desc: "non autocrop item in queue",
 			testValues: []TranscodeJob{{
 				Id: 1,
-				JobDefinition: TranscodeRequest{
+				JobDefinition: ffwrap.TranscodeRequest{
 					Source:      "/path/to/source.mkv",
 					Destination: "/path/to/destination.mkv",
 					Crf:         18,
@@ -279,7 +280,7 @@ func TestQueryQueued(t *testing.T) {
 			expectedQueue: []PageQueueInfo{
 				{
 					Id: 1,
-					JobDefinition: TranscodeRequest{
+					JobDefinition: ffwrap.TranscodeRequest{
 						Source:      "/path/to/source.mkv",
 						Destination: "/path/to/destination.mkv",
 						Crf:         18,
@@ -430,7 +431,7 @@ func TestQueryActive(t *testing.T) {
 			expectedJobs: []TranscodeJob{
 				{
 					Id: 1,
-					JobDefinition: TranscodeRequest{
+					JobDefinition: ffwrap.TranscodeRequest{
 						Source:        "/path/to/source1.mkv",
 						Destination:   "/path/to/destination1.mkv",
 						Srt_files:     []string{"srt_file1"},
@@ -439,7 +440,7 @@ func TestQueryActive(t *testing.T) {
 						Video_filters: "",
 						Audio_filters: "",
 					},
-					SourceMeta: MediaMetadata{
+					SourceMeta: ffwrap.MediaMetadata{
 						Codec:    "h264",
 						Duration: "1",
 					},

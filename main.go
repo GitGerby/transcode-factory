@@ -28,6 +28,7 @@ import (
 	"database/sql"
 
 	"github.com/gitgerby/transcode-factory/internal/pkg/config"
+	"github.com/gitgerby/transcode-factory/internal/pkg/ffwrap"
 	"github.com/gitgerby/transcode-factory/internal/pkg/priority"
 
 	"github.com/google/logger"
@@ -39,31 +40,6 @@ import (
 )
 
 type program struct{}
-
-type TranscodeRequest struct {
-	Source        string   `json:"source"`
-	Destination   string   `json:"destination"`
-	Srt_files     []string `json:"srt_files"`
-	Crf           int      `json:"crf"`
-	Autocrop      bool     `json:"autocrop"`
-	Video_filters string   `json:"video_filters"`
-	Audio_filters string   `json:"audio_filters"`
-	Codec         string   `json:"codec"`
-}
-
-type TranscodeJob struct {
-	Id            int
-	JobDefinition TranscodeRequest
-	SourceMeta    MediaMetadata
-	State         JobState
-}
-
-type MediaMetadata struct {
-	Duration string
-	Codec    string
-	Width    int
-	Height   int
-}
 
 type JobState string
 
@@ -79,13 +55,18 @@ const (
 	JOB_CANCELLED        = "job cancelled before completion"
 )
 
+type TranscodeJob struct {
+	Id            int
+	JobDefinition ffwrap.TranscodeRequest
+	SourceMeta    ffwrap.MediaMetadata
+	State         JobState
+}
+
 var (
 	databasefile       string
 	db                 *sql.DB
 	ctx                context.Context
-	stop_ctx           func()
-	ffmpegbinary       string
-	ffprobebinary      string
+	cancelCtx          func()
 	transcode_log_path string
 	wsHub              *Hub
 	tfConfig           config.TFConfig
@@ -105,7 +86,7 @@ func (p *program) Run() {
 	}
 
 	// Create context and setup for service stop
-	ctx, stop_ctx = context.WithCancel(context.Background())
+	ctx, cancelCtx = context.WithCancel(context.Background())
 
 	// Find and connect to the database
 	databasefile = fmt.Sprintf("%s?_pragma=busy_timeout(5000)", *tfConfig.DBPath)
@@ -123,11 +104,7 @@ func (p *program) Run() {
 		logger.Fatalf("failed to prepare database: %v", err)
 	}
 
-	// Find ffmpeg binary to use
-	ffmpegbinary = *tfConfig.FfmpegPath
-
-	// Find ffprobe binary to use
-	ffprobebinary = *tfConfig.FfprobePath
+	ffwrap.SetBinaryLocations(*tfConfig.FfmpegPath, *tfConfig.FfprobePath)
 
 	// Create log directory if it does not exist
 	transcode_log_path = *tfConfig.LogDirectory
@@ -147,7 +124,9 @@ func (p *program) Run() {
 
 func (p *program) Stop(s service.Service) error {
 	logger.Info("Service received stop request")
-	stop_ctx()
+	cancelCtx()
+	// Give time for the goroutines to finish up
+	time.Sleep(time.Second * 1)
 	db.Close()
 	return nil
 }
@@ -374,7 +353,8 @@ func copyManager() {
 			if err := updateJobStatus(tj.Id, JOB_TRANSCODING); err != nil {
 				logger.Errorf("failed to update job: %d with error: %v", tj.Id, err)
 			}
-			args, err := ffmpegTranscode(tj)
+
+			args, err := ffwrap.FfmpegTranscode(ctx, tj.JobDefinition)
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					return err
