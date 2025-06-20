@@ -34,6 +34,12 @@ type ColorSideInfo struct {
 
 // Vars used for tests
 var (
+	ValidColorMetaData = ColorInfo{
+		Color_space:     "bt709",
+		Color_primaries: "bt709",
+		Color_transfer:  "bt709",
+		Side_data_list:  []ColorSideInfo{ValidLightColorInfo, ValidMasteringColorInfo}}
+
 	ValidMasteringColorInfo = ColorSideInfo{
 		Side_data_type: SideDataTypeMastering,
 		Red_x:          "30/100",

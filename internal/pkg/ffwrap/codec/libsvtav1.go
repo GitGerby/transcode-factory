@@ -89,11 +89,6 @@ func BuildLibSvtAv1(grain string, crf int, colorMeta ColorInfo) []string {
 		"-preset", "6",
 	}
 
-	switch grain {
-	case "low":
-		libsvtav1 = append(libsvtav1, "-svtav1-params", "film-grain=10")
-	}
-
 	svtav1Params := []string{"tune=0:enable-overlays=1:input-depth=10"}
 	if colorMeta.Color_space != "" {
 		libsvtav1 = append(libsvtav1, "-colorspace", colorMeta.Color_space)
@@ -118,6 +113,14 @@ func BuildLibSvtAv1(grain string, crf int, colorMeta ColorInfo) []string {
 			svtav1Params = append(svtav1Params, fmt.Sprintf("content-light=%d,%d", sd.Max_content, sd.Max_average))
 		}
 		svtav1Params = append(svtav1Params, "chroma-sample-position=topleft")
+	}
+	switch grain {
+	case "low":
+		svtav1Params = append(svtav1Params, "film-grain=5")
+	case "medium":
+		svtav1Params = append(svtav1Params, "film-grain=8")
+	case "high":
+		svtav1Params = append(svtav1Params, "film-grain=12")
 	}
 	libsvtav1 = append(libsvtav1, "-svtav1-params", strings.Join(svtav1Params, ":"))
 	return append(libsvtav1, "-pix_fmt", "yuv420p10le")
