@@ -219,6 +219,12 @@ func buildCodec(codec string, crf int, colorMeta libcodec.ColorInfo) []string {
 		return []string{"-c:v", "copy"}
 	case "libsvtav1":
 		return libcodec.BuildLibSvtAv1("none", crf, colorMeta)
+	case "libsvtav1_grain:low":
+		return libcodec.BuildLibSvtAv1("low", crf, colorMeta)
+	case "libsvtav1_grain:medium":
+		return libcodec.BuildLibSvtAv1("medium", crf, colorMeta)
+	case "libsvtav1_grain:high":
+		return libcodec.BuildLibSvtAv1("high", crf, colorMeta)
 	case "hevc_nvenc":
 		return hevc_nvec
 	case "libx265_animation":
