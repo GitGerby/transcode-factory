@@ -217,6 +217,8 @@ func buildCodec(codec string, crf int, colorMeta libcodec.ColorInfo) []string {
 	switch strings.ToLower(codec) {
 	case "copy":
 		return []string{"-c:v", "copy"}
+	case "hevc_nvenc":
+		return hevc_nvec
 	case "libsvtav1":
 		return libcodec.BuildLibSvtAv1("none", crf, colorMeta)
 	case "libsvtav1_grain:low":
@@ -225,8 +227,6 @@ func buildCodec(codec string, crf int, colorMeta libcodec.ColorInfo) []string {
 		return libcodec.BuildLibSvtAv1("medium", crf, colorMeta)
 	case "libsvtav1_grain:high":
 		return libcodec.BuildLibSvtAv1("high", crf, colorMeta)
-	case "hevc_nvenc":
-		return hevc_nvec
 	case "libx265_animation":
 		return libcodec.BuildLibx265("animation", crf, colorMeta)
 	case "libx265_grain":
