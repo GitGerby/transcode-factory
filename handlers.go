@@ -311,8 +311,7 @@ func bulkAddHandler(w http.ResponseWriter, req *http.Request, refreshChannel cha
 	refreshChannel <- true
 }
 
-// logStream upgrades an HTTP connection to a WebSocket and integrates it into the websocket hub.
-// It creates a new Client instance with the upgraded connection and registers it with the websocket hub.
+// logStream upgrades an HTTP connection to a WebSocket and registers it with the websocket hub.
 // The readPump and writePump goroutines are started for handling incoming and outgoing messages respectively.
 func logStream(w http.ResponseWriter, r *http.Request) {
 	wsconn, err := upgrader.Upgrade(w, r, nil)
