@@ -201,24 +201,11 @@ func parseColorInfo(ctx context.Context, inputFile string) (libcodec.ColorInfo, 
 // The function will always return a valid set of ffmpeg flags for a given codec, if an unrecognized codec is passed then a default libx265 arg slice will be built and returned.
 func buildCodec(codec string, crf int, colorMeta libcodec.ColorInfo) []string {
 
-	hevc_nvec := []string{
-		"-pix_fmt", "p010le",
-		"-c:v", "hevc_nvenc",
-		"-rc", "1",
-		"-cq", fmt.Sprintf("%d", crf),
-		"-profile:v", "1",
-		"-tier", "1",
-		"-spatial_aq", "1",
-		"-temporal_aq", "1",
-		"-preset", "1",
-		"-b_ref_mode", "2",
-	}
-
 	switch strings.ToLower(codec) {
 	case "copy":
 		return []string{"-c:v", "copy"}
 	case "hevc_nvenc":
-		return hevc_nvec
+		return libcodec.Nvenc_hevc(crf)
 	case "libsvtav1":
 		return libcodec.BuildLibSvtAv1("none", crf, colorMeta)
 	case "libsvtav1_grain:low":
