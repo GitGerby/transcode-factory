@@ -63,13 +63,13 @@ type TranscodeJob struct {
 }
 
 var (
-	databasefile       string
-	db                 *sql.DB
-	ctx                context.Context
-	cancelCtx          func()
-	transcode_log_path string
-	wsHub              *Hub
-	tfConfig           config.TFConfig
+	databasefile string
+	db           *sql.DB
+	ctx          context.Context
+	cancelCtx    func()
+	encodeLogDir string
+	wsHub        *Hub
+	tfConfig     config.TFConfig
 )
 
 func (p *program) Start(s service.Service) error {
@@ -107,8 +107,8 @@ func (p *program) Run() {
 	ffwrap.SetBinaryLocations(*tfConfig.FfmpegPath, *tfConfig.FfprobePath)
 
 	// Create log directory if it does not exist
-	transcode_log_path = *tfConfig.LogDirectory
-	if err := os.MkdirAll(transcode_log_path, 0644); err != nil {
+	encodeLogDir = *tfConfig.LogDirectory
+	if err := os.MkdirAll(encodeLogDir, 0644); err != nil {
 		logger.Errorf("failed to create transcode log directory: %v", err)
 	}
 

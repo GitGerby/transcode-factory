@@ -318,7 +318,7 @@ func finishJob(tj *TranscodeJob, args []string) error {
 // It inserts or replaces the file path in the 'log_files' table.
 func registerLogFile(tj *TranscodeJob) error {
 	fp := filepath.Base(tj.JobDefinition.Destination)
-	tj.JobDefinition.LogDestination = filepath.Join(transcode_log_path, fmt.Sprintf("%s_%d.log", fp, time.Now().UnixNano()))
+	tj.JobDefinition.LogDestination = filepath.Join(encodeLogDir, fmt.Sprintf("%s_%d.log", fp, time.Now().UnixNano()))
 
 	err := os.MkdirAll(filepath.Dir(tj.JobDefinition.LogDestination), 0644)
 	if err != nil {
