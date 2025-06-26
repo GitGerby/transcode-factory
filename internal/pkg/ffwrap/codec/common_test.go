@@ -1,9 +1,7 @@
-package ffwrap
+package codec
 
 import (
 	"testing"
-
-	"github.com/gitgerby/transcode-factory/internal/pkg/ffwrap/codec"
 )
 
 // Define a struct for each test case, including input and expected output
@@ -11,7 +9,7 @@ type buildCodecTestCase struct {
 	desc      string
 	codec     string
 	crf       int
-	colorMeta codec.ColorInfo
+	colorMeta ColorInfo
 	expected  []string
 }
 
@@ -26,11 +24,11 @@ func TestBuildCodec(t *testing.T) {
 		{
 			desc:  "hevc_nvenc -- sdr",
 			codec: "hevc_nvenc",
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list:  []codec.ColorSideInfo{},
+				Side_data_list:  []ColorSideInfo{},
 			},
 			expected: []string{
 				"-pix_fmt", "p010le",
@@ -49,13 +47,13 @@ func TestBuildCodec(t *testing.T) {
 			// note that the current implementation of nvenc here does not support hdr
 			desc:  "hevc_nvenc -- hdr",
 			codec: "hevc_nvenc",
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list: []codec.ColorSideInfo{
-					codec.ValidMasteringColorInfo,
-					codec.ValidLightColorInfo,
+				Side_data_list: []ColorSideInfo{
+					ValidMasteringColorInfo,
+					ValidLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -75,13 +73,13 @@ func TestBuildCodec(t *testing.T) {
 			desc:  "libx265 -- good HDR",
 			codec: "libx265",
 			crf:   23,
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list: []codec.ColorSideInfo{
-					codec.ValidMasteringColorInfo,
-					codec.ValidLightColorInfo,
+				Side_data_list: []ColorSideInfo{
+					ValidMasteringColorInfo,
+					ValidLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -101,11 +99,11 @@ func TestBuildCodec(t *testing.T) {
 			desc:  "libx265 -- good sdr",
 			codec: "libx265",
 			crf:   23,
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list:  []codec.ColorSideInfo{},
+				Side_data_list:  []ColorSideInfo{},
 			},
 			expected: []string{
 				"-c:v", "libx265",
@@ -123,13 +121,13 @@ func TestBuildCodec(t *testing.T) {
 			desc:  "libx265 -- NANMasteringColor HDR",
 			codec: "libx265",
 			crf:   23,
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list: []codec.ColorSideInfo{
-					codec.NanMasteringColorInfo,
-					codec.ValidLightColorInfo,
+				Side_data_list: []ColorSideInfo{
+					NanMasteringColorInfo,
+					ValidLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -144,13 +142,13 @@ func TestBuildCodec(t *testing.T) {
 			desc:  "libx265_animation -- good",
 			codec: "libx265_animation",
 			crf:   23,
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list: []codec.ColorSideInfo{
-					codec.ValidMasteringColorInfo,
-					codec.ValidLightColorInfo,
+				Side_data_list: []ColorSideInfo{
+					ValidMasteringColorInfo,
+					ValidLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -170,13 +168,13 @@ func TestBuildCodec(t *testing.T) {
 			desc:  "libx265_grain -- good",
 			codec: "libx265_grain",
 			crf:   23,
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list: []codec.ColorSideInfo{
-					codec.ValidMasteringColorInfo,
-					codec.ValidLightColorInfo,
+				Side_data_list: []ColorSideInfo{
+					ValidMasteringColorInfo,
+					ValidLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -196,13 +194,13 @@ func TestBuildCodec(t *testing.T) {
 			desc:  "libsvtav1 -- good HDR",
 			codec: "libsvtav1",
 			crf:   23,
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list: []codec.ColorSideInfo{
-					codec.ValidMasteringColorInfo,
-					codec.ValidLightColorInfo,
+				Side_data_list: []ColorSideInfo{
+					ValidMasteringColorInfo,
+					ValidLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -220,13 +218,13 @@ func TestBuildCodec(t *testing.T) {
 			desc:  "libsvtav1 -- good HDR -- grain low",
 			codec: "libsvtav1_grain:low",
 			crf:   23,
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list: []codec.ColorSideInfo{
-					codec.ValidMasteringColorInfo,
-					codec.ValidLightColorInfo,
+				Side_data_list: []ColorSideInfo{
+					ValidMasteringColorInfo,
+					ValidLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -244,13 +242,13 @@ func TestBuildCodec(t *testing.T) {
 			desc:  "libsvtav1 -- good HDR -- grain medium",
 			codec: "libsvtav1_grain:medium",
 			crf:   23,
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list: []codec.ColorSideInfo{
-					codec.ValidMasteringColorInfo,
-					codec.ValidLightColorInfo,
+				Side_data_list: []ColorSideInfo{
+					ValidMasteringColorInfo,
+					ValidLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -268,13 +266,13 @@ func TestBuildCodec(t *testing.T) {
 			desc:  "libsvtav1 -- good HDR -- grain high",
 			codec: "libsvtav1_grain:high",
 			crf:   23,
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list: []codec.ColorSideInfo{
-					codec.ValidMasteringColorInfo,
-					codec.ValidLightColorInfo,
+				Side_data_list: []ColorSideInfo{
+					ValidMasteringColorInfo,
+					ValidLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -292,13 +290,13 @@ func TestBuildCodec(t *testing.T) {
 			desc:  "libsvtav1 -- NANMasteringColor HDR",
 			codec: "libsvtav1",
 			crf:   23,
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list: []codec.ColorSideInfo{
-					codec.NanMasteringColorInfo,
-					codec.ValidLightColorInfo,
+				Side_data_list: []ColorSideInfo{
+					NanMasteringColorInfo,
+					ValidLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -316,11 +314,11 @@ func TestBuildCodec(t *testing.T) {
 			desc:  "libsvtav1 -- Good SDR",
 			codec: "libsvtav1",
 			crf:   23,
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list:  []codec.ColorSideInfo{},
+				Side_data_list:  []ColorSideInfo{},
 			},
 			expected: []string{
 				"-c:v", "libsvtav1",
@@ -337,11 +335,11 @@ func TestBuildCodec(t *testing.T) {
 			desc:  "libsvtav1 -- Good SDR -- grain low",
 			codec: "libsvtav1_grain:low",
 			crf:   23,
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list:  []codec.ColorSideInfo{},
+				Side_data_list:  []ColorSideInfo{},
 			},
 			expected: []string{
 				"-c:v", "libsvtav1",
@@ -358,11 +356,11 @@ func TestBuildCodec(t *testing.T) {
 			desc:  "libsvtav1 -- Good SDR -- grain medium",
 			codec: "libsvtav1_grain:medium",
 			crf:   23,
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list:  []codec.ColorSideInfo{},
+				Side_data_list:  []ColorSideInfo{},
 			},
 			expected: []string{
 				"-c:v", "libsvtav1",
@@ -379,11 +377,11 @@ func TestBuildCodec(t *testing.T) {
 			desc:  "libsvtav1 -- Good SDR -- grain high",
 			codec: "libsvtav1_grain:high",
 			crf:   23,
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list:  []codec.ColorSideInfo{},
+				Side_data_list:  []ColorSideInfo{},
 			},
 			expected: []string{
 				"-c:v", "libsvtav1",
@@ -400,13 +398,13 @@ func TestBuildCodec(t *testing.T) {
 			desc:  "default case, unknown codec",
 			codec: "this is never going to resolve to a real codec I hope",
 			crf:   23,
-			colorMeta: codec.ColorInfo{
+			colorMeta: ColorInfo{
 				Color_space:     "bt709",
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
-				Side_data_list: []codec.ColorSideInfo{
-					codec.ValidMasteringColorInfo,
-					codec.ValidLightColorInfo,
+				Side_data_list: []ColorSideInfo{
+					ValidMasteringColorInfo,
+					ValidLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -428,7 +426,7 @@ func TestBuildCodec(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
-			result := buildCodec(tc.codec, tc.crf, tc.colorMeta)
+			result := BuildCodec(tc.codec, tc.crf, tc.colorMeta)
 			if len(result) != len(tc.expected) {
 				t.Errorf("Expected length of output to be %d, but got %d, %#v", len(tc.expected), len(result), result)
 			} else {

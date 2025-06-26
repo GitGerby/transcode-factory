@@ -136,7 +136,7 @@ func libx265HDR(colorMeta ColorInfo) (libx265, x265params []string, err error) {
 	return libx265, x265params, nil
 }
 
-func BuildLibx265(tune string, crf int, colorMeta ColorInfo) []string {
+func buildLibx265(tune string, crf int, colorMeta ColorInfo) []string {
 	libx265 := []string{
 		"-c:v", "libx265",
 		"-crf", fmt.Sprintf("%d", crf),

@@ -25,7 +25,7 @@ import (
 	"regexp"
 	"strings"
 
-	libcodec "github.com/gitgerby/transcode-factory/internal/pkg/ffwrap/codec"
+	"github.com/gitgerby/transcode-factory/internal/pkg/ffwrap/codec"
 
 	"github.com/google/logger"
 )
@@ -135,7 +135,7 @@ func FfmpegTranscode(ctx context.Context, tr TranscodeRequest) ([]string, error)
 		logger.Errorf("failed to parse color metadata: %v", err)
 	}
 	logger.Infof("got color metadata: %#v", colorMeta)
-	args = append(args, buildCodec(tr.Codec, tr.Crf, colorMeta)...)
+	args = append(args, codec.BuildCodec(tr.Codec, tr.Crf, colorMeta)...)
 	args = append(args, "-c:a", "copy", "-c:s", "copy", "-c:t", "copy")
 	args = append(args, mapargs...)
 	args = append(args, tr.Destination)
@@ -168,7 +168,7 @@ func FfmpegTranscode(ctx context.Context, tr TranscodeRequest) ([]string, error)
 // parseColorInfo extracts detailed color information about the video stream of an input file using ffprobe.
 // It constructs and executes a command to extract specific metadata related to color spaces, primary colors, transfer characteristics, pixel formats, and other frame details.
 // The function returns the parsed color information or an error if extraction fails.
-func parseColorInfo(ctx context.Context, inputFile string) (libcodec.ColorInfo, error) {
+func parseColorInfo(ctx context.Context, inputFile string) (codec.ColorInfo, error) {
 	args := []string{
 		"-hide_banner",
 		"-loglevel", "warning",
@@ -185,42 +185,13 @@ func parseColorInfo(ctx context.Context, inputFile string) (libcodec.ColorInfo, 
 	cmd := exec.CommandContext(ctx, ffprobebinary, args...)
 	o, err := cmd.Output()
 	if err != nil && cmd.ProcessState.ExitCode() != 0 {
-		return libcodec.ColorInfo{}, fmt.Errorf("failed to extract color information err: %v output: %s exit code: %d", err, o, cmd.ProcessState.ExitCode())
+		return codec.ColorInfo{}, fmt.Errorf("failed to extract color information err: %v output: %s exit code: %d", err, o, cmd.ProcessState.ExitCode())
 	}
 
 	var ci ColorInfoWrapper
 	if err := json.Unmarshal(o, &ci); err != nil {
-		return libcodec.ColorInfo{}, fmt.Errorf("failed to unmarshal color info %q from ffprobe: %w", o, err)
+		return codec.ColorInfo{}, fmt.Errorf("failed to unmarshal color info %q from ffprobe: %w", o, err)
 	}
 
 	return ci.Frames[0], nil
-}
-
-// buildCodec generates command line arguments for ffmpeg based on the specified codec type and CRF value, with optional color metadata.
-// It supports various codecs including libx265, libsvtav1, hevc_nvenc, and can handle specific configurations based on the provided CRF value and color metadata.
-// The function will always return a valid set of ffmpeg flags for a given codec, if an unrecognized codec is passed then a default libx265 arg slice will be built and returned.
-func buildCodec(codec string, crf int, colorMeta libcodec.ColorInfo) []string {
-
-	switch strings.ToLower(codec) {
-	case "copy":
-		return []string{"-c:v", "copy"}
-	case "hevc_nvenc":
-		return libcodec.Nvenc_hevc(crf)
-	case "libsvtav1":
-		return libcodec.BuildLibSvtAv1("none", crf, colorMeta)
-	case "libsvtav1_grain:low":
-		return libcodec.BuildLibSvtAv1("low", crf, colorMeta)
-	case "libsvtav1_grain:medium":
-		return libcodec.BuildLibSvtAv1("medium", crf, colorMeta)
-	case "libsvtav1_grain:high":
-		return libcodec.BuildLibSvtAv1("high", crf, colorMeta)
-	case "libx265_animation":
-		return libcodec.BuildLibx265("animation", crf, colorMeta)
-	case "libx265_grain":
-		return libcodec.BuildLibx265("grain", crf, colorMeta)
-	case "libx265":
-		return libcodec.BuildLibx265("none", crf, colorMeta)
-	default:
-		return libcodec.BuildLibx265("none", crf, colorMeta)
-	}
 }

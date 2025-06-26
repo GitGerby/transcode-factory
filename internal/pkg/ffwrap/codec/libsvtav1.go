@@ -82,7 +82,7 @@ func parseColorCoordsAv1(csi ColorSideInfo) (ColorCoords, error) {
 	return ColorCoords{g + b + r + wp + lm}, nil
 }
 
-func BuildLibSvtAv1(grain string, crf int, colorMeta ColorInfo) []string {
+func buildLibSvtAv1(grain string, crf int, colorMeta ColorInfo) []string {
 	libsvtav1 := []string{
 		"-c:v", "libsvtav1",
 		"-crf", fmt.Sprintf("%d", crf),

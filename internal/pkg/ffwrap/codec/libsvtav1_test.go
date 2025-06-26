@@ -86,7 +86,7 @@ func TestBuildLibSvtAv1(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
-			result := BuildLibSvtAv1(tc.grain, 18, tc.colorMeta)
+			result := buildLibSvtAv1(tc.grain, 18, tc.colorMeta)
 			if cmp.Diff(result, tc.expected) != "" {
 				t.Errorf("unexpected result %#v want: %#v", result, tc.expected)
 			}
