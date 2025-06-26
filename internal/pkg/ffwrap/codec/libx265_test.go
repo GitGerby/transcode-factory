@@ -11,19 +11,19 @@ func TestParseColorCoords265(t *testing.T) {
 	}{
 		{
 			desc:        "Valid color side information",
-			csi:         ValidMasteringColorInfo,
+			csi:         validMasteringColorInfo,
 			expected:    "G(20000,20000)B(10000,10000)R(15000,15000)WP(45000,50000)L(10000,0)",
 			shouldError: false,
 		},
 		{
 			desc:        "Missing color side information",
-			csi:         MissingMasteringColorInfo,
+			csi:         missingMasteringColorInfo,
 			expected:    "",
 			shouldError: true,
 		},
 		{
 			desc:        "Not a number color side information",
-			csi:         NanMasteringColorInfo,
+			csi:         nanMasteringColorInfo,
 			expected:    "",
 			shouldError: true,
 		},
@@ -62,8 +62,8 @@ func TestLibx265HDR(t *testing.T) {
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []ColorSideInfo{
-					ValidLightColorInfo,
-					ValidMasteringColorInfo,
+					validLightColorInfo,
+					validMasteringColorInfo,
 				},
 			},
 			expectedLib: []string{
@@ -87,8 +87,8 @@ func TestLibx265HDR(t *testing.T) {
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []ColorSideInfo{
-					NanMasteringColorInfo,
-					ValidLightColorInfo,
+					nanMasteringColorInfo,
+					validLightColorInfo,
 				},
 			},
 			expectedLib:   nil,
@@ -102,8 +102,8 @@ func TestLibx265HDR(t *testing.T) {
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []ColorSideInfo{
-					ValidMasteringColorInfo,
-					MissingLightColorInfo,
+					validMasteringColorInfo,
+					missingLightColorInfo,
 				},
 			},
 			expectedLib:   []string{"-color_trc:v", "srgb", "-color_primaries:v", "bt709", "-colorspace", "bt709"},

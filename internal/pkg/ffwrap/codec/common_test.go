@@ -4,6 +4,59 @@ import (
 	"testing"
 )
 
+// Vars used for tests
+var (
+	validColorMetaData = ColorInfo{
+		Color_space:     "bt709",
+		Color_primaries: "bt709",
+		Color_transfer:  "bt709",
+		Side_data_list:  []ColorSideInfo{validLightColorInfo, validMasteringColorInfo}}
+
+	validMasteringColorInfo = ColorSideInfo{
+		Side_data_type: SideDataTypeMastering,
+		Red_x:          "30/100",
+		Red_y:          "30/100",
+		Green_x:        "40/100",
+		Green_y:        "40/100",
+		Blue_x:         "20/100",
+		Blue_y:         "20/100",
+		White_point_x:  "90/100",
+		White_point_y:  "100/100",
+		Max_luminance:  "100/100",
+		Min_luminance:  "0/100",
+	}
+	missingMasteringColorInfo = ColorSideInfo{
+		Side_data_type: SideDataTypeMastering,
+		Red_x:          "30/100",
+		Red_y:          "30/100",
+		Green_x:        "40/100",
+		White_point_x:  "90/100",
+		White_point_y:  "100/100",
+	}
+	nanMasteringColorInfo = ColorSideInfo{
+		Side_data_type: SideDataTypeMastering,
+		Red_x:          "30/100",
+		Red_y:          "30/100",
+		Green_x:        "40/100",
+		Green_y:        "40/100",
+		Blue_x:         "a/100",
+		Blue_y:         "20/100",
+		White_point_x:  "90/100",
+		White_point_y:  "100/100",
+		Max_luminance:  "a/100",
+		Min_luminance:  "0/100",
+	}
+	validLightColorInfo = ColorSideInfo{
+		Side_data_type: SideDataTypeLightLevel,
+		Max_content:    700,
+		Max_average:    200,
+	}
+	missingLightColorInfo = ColorSideInfo{
+		Side_data_type: SideDataTypeLightLevel,
+		Max_content:    700,
+	}
+)
+
 // Define a struct for each test case, including input and expected output
 type buildCodecTestCase struct {
 	desc      string
@@ -52,8 +105,8 @@ func TestBuildCodec(t *testing.T) {
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []ColorSideInfo{
-					ValidMasteringColorInfo,
-					ValidLightColorInfo,
+					validMasteringColorInfo,
+					validLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -78,8 +131,8 @@ func TestBuildCodec(t *testing.T) {
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []ColorSideInfo{
-					ValidMasteringColorInfo,
-					ValidLightColorInfo,
+					validMasteringColorInfo,
+					validLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -126,8 +179,8 @@ func TestBuildCodec(t *testing.T) {
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []ColorSideInfo{
-					NanMasteringColorInfo,
-					ValidLightColorInfo,
+					nanMasteringColorInfo,
+					validLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -147,8 +200,8 @@ func TestBuildCodec(t *testing.T) {
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []ColorSideInfo{
-					ValidMasteringColorInfo,
-					ValidLightColorInfo,
+					validMasteringColorInfo,
+					validLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -173,8 +226,8 @@ func TestBuildCodec(t *testing.T) {
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []ColorSideInfo{
-					ValidMasteringColorInfo,
-					ValidLightColorInfo,
+					validMasteringColorInfo,
+					validLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -199,8 +252,8 @@ func TestBuildCodec(t *testing.T) {
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []ColorSideInfo{
-					ValidMasteringColorInfo,
-					ValidLightColorInfo,
+					validMasteringColorInfo,
+					validLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -223,8 +276,8 @@ func TestBuildCodec(t *testing.T) {
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []ColorSideInfo{
-					ValidMasteringColorInfo,
-					ValidLightColorInfo,
+					validMasteringColorInfo,
+					validLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -247,8 +300,8 @@ func TestBuildCodec(t *testing.T) {
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []ColorSideInfo{
-					ValidMasteringColorInfo,
-					ValidLightColorInfo,
+					validMasteringColorInfo,
+					validLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -271,8 +324,8 @@ func TestBuildCodec(t *testing.T) {
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []ColorSideInfo{
-					ValidMasteringColorInfo,
-					ValidLightColorInfo,
+					validMasteringColorInfo,
+					validLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -295,8 +348,8 @@ func TestBuildCodec(t *testing.T) {
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []ColorSideInfo{
-					NanMasteringColorInfo,
-					ValidLightColorInfo,
+					nanMasteringColorInfo,
+					validLightColorInfo,
 				},
 			},
 			expected: []string{
@@ -403,8 +456,8 @@ func TestBuildCodec(t *testing.T) {
 				Color_primaries: "bt709",
 				Color_transfer:  "srgb",
 				Side_data_list: []ColorSideInfo{
-					ValidMasteringColorInfo,
-					ValidLightColorInfo,
+					validMasteringColorInfo,
+					validLightColorInfo,
 				},
 			},
 			expected: []string{
