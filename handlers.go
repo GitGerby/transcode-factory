@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"net/http"
 
+	_ "embed"
+
 	template "html/template"
 
 	"github.com/gitgerby/transcode-factory/internal/pkg/ffwrap"
@@ -33,12 +35,6 @@ type PageData struct {
 	CompletedJobs []TranscodeJob
 }
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin:     func(r *http.Request) bool { return true },
-}
-
 type PageQueueInfo struct {
 	Id            int
 	JobDefinition ffwrap.TranscodeRequest
@@ -46,6 +42,15 @@ type PageQueueInfo struct {
 	State         JobState
 	CropState     string
 }
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin:     func(r *http.Request) bool { return true },
+}
+
+//go:embed web/templates/statusz.tmpl
+var statuszTemplate string
 
 // queryQueued fetches all jobs that are currently queued (not in active_jobs) from the database.
 // The function returns a slice of PageQueueInfo objects representing the queued jobs if successful, or an error if something goes wrong.
