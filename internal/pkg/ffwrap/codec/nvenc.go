@@ -2,7 +2,7 @@ package codec
 
 import "fmt"
 
-func nvenc_hevc(crf int) []string {
+func buildNvencHevc(crf int) []string {
 	return []string{
 		"-pix_fmt", "p010le",
 		"-c:v", "hevc_nvenc",

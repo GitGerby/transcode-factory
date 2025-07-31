@@ -42,7 +42,7 @@ func BuildCodec(codec string, crf int, colorMeta ColorInfo) []string {
 	case "copy":
 		return []string{"-c:v", "copy"}
 	case "hevc_nvenc":
-		return nvenc_hevc(crf)
+		return buildNvencHevc(crf)
 	case "libsvtav1":
 		return buildLibSvtAv1("none", crf, colorMeta)
 	case "libsvtav1_grain:low":
@@ -57,6 +57,8 @@ func BuildCodec(codec string, crf int, colorMeta ColorInfo) []string {
 		return buildLibx265("grain", crf, colorMeta)
 	case "libx265":
 		return buildLibx265("none", crf, colorMeta)
+	case "av1_amf":
+		return buildAv1Amf()
 	default:
 		return buildLibx265("none", crf, colorMeta)
 	}
