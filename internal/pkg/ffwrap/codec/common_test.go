@@ -462,7 +462,7 @@ func TestBuildCodec(t *testing.T) {
 				"-quality", "quality",
 				"-vbaq", "true",
 				"-bitdepth", "10",
-				"-pix_fmt", "yuv420p10le",
+				"-pix_fmt", "p010le",
 			},
 		},
 		{
