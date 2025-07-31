@@ -448,6 +448,24 @@ func TestBuildCodec(t *testing.T) {
 			},
 		},
 		{
+			desc:  "av1_amf",
+			codec: "av1_amf",
+			crf:   23,
+			colorMeta: ColorInfo{
+				Color_space:     "bt709",
+				Color_primaries: "bt709",
+				Color_transfer:  "srgb",
+				Side_data_list:  []ColorSideInfo{},
+			},
+			expected: []string{
+				"-c:v", "av1_amf",
+				"-quality", "quality",
+				"-vbaq", "true",
+				"-bitdepth", "10",
+				"-pix_fmt", "yuv420p10le",
+			},
+		},
+		{
 			desc:  "default case, unknown codec",
 			codec: "this is never going to resolve to a real codec I hope",
 			crf:   23,
