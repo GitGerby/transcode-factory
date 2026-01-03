@@ -4,6 +4,7 @@ import (
 	"embed"
 	"errors"
 	"io/fs"
+	"os"
 	"reflect"
 	"testing"
 
@@ -14,6 +15,11 @@ import (
 //go:embed default.yaml
 //go:embed default_windows.yaml
 var efs embed.FS
+
+const (
+	testFFProbeEnv = "/env/ffprobe"
+	testFFMpegEnv  = "/env/ffmpeg"
+)
 
 func testFile(path string, t *testing.T) fs.File {
 	t.Helper()
@@ -51,6 +57,14 @@ func buildFromConstants(t *testing.T) *TFConfig {
 	return df
 }
 
+func buildFromEnv(t *testing.T) *TFConfig {
+	t.Helper()
+	df := buildFromConstants(t)
+	*df.FfmpegPath = testFFMpegEnv
+	*df.FfprobePath = testFFProbeEnv
+	return df
+}
+
 func TestDefaultConfiguration(t *testing.T) {
 	tests := []struct {
 		name string
@@ -74,6 +88,7 @@ func TestLoadConfig(t *testing.T) {
 	tests := []struct {
 		name     string
 		testFile fs.File
+		setup    func() error
 		want     *TFConfig
 		err      error
 	}{
@@ -88,15 +103,38 @@ func TestLoadConfig(t *testing.T) {
 			want:     buildFromConstants(t),
 		},
 		{
+			name:     "empty config file with env",
+			testFile: testFile("test_data/empty.yaml", t),
+			setup: func() error {
+				if err := os.Setenv("TF_FFMPEG", testFFMpegEnv); err != nil {
+					return err
+				}
+				return os.Setenv("TF_FFPROBE", testFFProbeEnv)
+			},
+			want: buildFromEnv(t),
+		},
+		{
 			name:     "invalid config file",
 			testFile: testFile("test_data/invalid.yaml", t),
 			want:     &TFConfig{},
 			err:      ErrYamlError,
 		},
 	}
+
+	tp := os.Getenv("PATH")
+	defer func() { os.Setenv("PATH", tp) }()
+	ffme := os.Getenv("TF_FFMPEG")
+	defer func() { os.Setenv("TF_FFMPEG", ffme) }()
+	ffpe := os.Getenv("TF_FFPROBE")
+	defer func() { os.Setenv("TF_FFPROBE", ffpe) }()
+	os.Setenv("PATH", "")
+
 	for _, tt := range tests {
 		conf := new(TFConfig)
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.setup != nil {
+				tt.setup()
+			}
 			err := conf.loadConfig(tt.testFile)
 			diff := cmp.Diff(conf, tt.want)
 			if diff != "" {

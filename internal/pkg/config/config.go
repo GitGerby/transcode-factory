@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
@@ -58,59 +59,96 @@ func (c *TFConfig) loadConfig(configFile fs.File) error {
 		return fmt.Errorf("%w: %w", ErrYamlError, err)
 	}
 
-	if tempConfig.TranscodeLimit == nil {
+	switch {
+	case tempConfig.TranscodeLimit != nil:
+		c.TranscodeLimit = tempConfig.TranscodeLimit
+	default:
 		c.TranscodeLimit = new(int)
 		*c.TranscodeLimit = defaultTranscodeLimit
-	} else {
-		c.TranscodeLimit = tempConfig.TranscodeLimit
 	}
-	if tempConfig.CropLimit == nil {
+
+	switch {
+	case tempConfig.CropLimit != nil:
+		c.CropLimit = tempConfig.CropLimit
+	default:
 		c.CropLimit = new(int)
 		*c.CropLimit = defaultCropLimit
-	} else {
-		c.CropLimit = tempConfig.CropLimit
 	}
-	if tempConfig.CopyLimit == nil {
+
+	switch {
+	case tempConfig.CopyLimit != nil:
+		c.CopyLimit = tempConfig.CopyLimit
+	default:
 		c.CopyLimit = new(int)
 		*c.CopyLimit = defaultCopyLimit
-	} else {
-		c.CopyLimit = tempConfig.CopyLimit
 	}
-	if tempConfig.DBPath == nil {
+
+	switch {
+	case tempConfig.DBPath != nil:
+		c.DBPath = tempConfig.DBPath
+	default:
 		c.DBPath = new(string)
 		*c.DBPath = defaultDBPath
-	} else {
-		c.DBPath = tempConfig.DBPath
 	}
-	if tempConfig.FfmpegPath == nil {
+
+	switch {
+	case tempConfig.FfmpegPath != nil:
+		c.FfmpegPath = tempConfig.FfmpegPath
+	case os.Getenv("TF_FFMPEG") != "":
+		c.FfmpegPath = new(string)
+		*c.FfmpegPath = os.Getenv("TF_FFMPEG")
+	case func() bool {
+		_, err := exec.LookPath("ffmpeg")
+		return err == nil
+	}():
+		c.FfmpegPath = new(string)
+		// We know err will be nil here so we can safely drop it
+		*c.FfmpegPath, _ = exec.LookPath("ffmpeg")
+	default:
 		c.FfmpegPath = new(string)
 		*c.FfmpegPath = defaultFfmpegPath
-	} else {
-		c.FfmpegPath = tempConfig.FfmpegPath
 	}
-	if tempConfig.FfprobePath == nil {
+
+	switch {
+	case tempConfig.FfprobePath != nil:
+		c.FfprobePath = tempConfig.FfprobePath
+	case os.Getenv("TF_FFPROBE") != "":
+		c.FfprobePath = new(string)
+		*c.FfprobePath = os.Getenv("TF_FFPROBE")
+	case func() bool {
+		_, err := exec.LookPath("ffprobe")
+		return err == nil
+	}():
+		c.FfprobePath = new(string)
+		// We know err will be nil here so we can safely drop it
+		*c.FfprobePath, _ = exec.LookPath("ffprobe")
+	default:
 		c.FfprobePath = new(string)
 		*c.FfprobePath = defaultFfprobePath
-	} else {
-		c.FfprobePath = tempConfig.FfprobePath
 	}
-	if tempConfig.LogDirectory == nil {
+
+	switch {
+	case tempConfig.LogDirectory != nil:
+		c.LogDirectory = tempConfig.LogDirectory
+	default:
 		c.LogDirectory = new(string)
 		*c.LogDirectory = defaultLogDirectory
-	} else {
-		c.LogDirectory = tempConfig.LogDirectory
 	}
-	if tempConfig.ListenPort == nil {
+
+	switch {
+	case tempConfig.ListenPort != nil:
+		c.ListenPort = tempConfig.ListenPort
+	default:
 		c.ListenPort = new(int)
 		*c.ListenPort = defaultListenPort
-	} else {
-		c.ListenPort = tempConfig.ListenPort
 	}
-	if tempConfig.ListenAddress == nil {
+
+	switch {
+	case tempConfig.ListenAddress != nil:
+		c.ListenAddress = tempConfig.ListenAddress
+	default:
 		c.ListenAddress = new(string)
 		*c.ListenAddress = defaultListenAddress
-	} else {
-		c.ListenAddress = tempConfig.ListenAddress
 	}
 
 	return nil
