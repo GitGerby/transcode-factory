@@ -97,12 +97,25 @@
         {{end}}
     </table>
     <script>
+        var proto = window.location.protocol
         var loc = window.location.hostname;
         var port = window.location.port;
         if (port == "") {
-            port = "80";
+            switch(proto) {
+                case "http:":
+                    port = "80";
+                case "https:":
+                    port = "443";
+            }
         }
-        var ws_uri = "ws://" + loc + ":" + port + "/logstream";
+        var ws_proto
+        switch(proto) {
+                case "http:":
+                    ws_proto = "ws://";
+                case "https:":
+                    ws_proto = "wss://";
+        }
+        var ws_uri = ws_proto + loc + ":" + port + "/logstream";
         var ws = new WebSocket(ws_uri);
 
         ws.onmessage = function(event) {
