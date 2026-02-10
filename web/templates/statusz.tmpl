@@ -98,7 +98,11 @@
     </table>
     <script>
         var loc = window.location.hostname;
-        var ws_uri = "ws://" + loc + ":51218/logstream";
+        var port = window.location.port;
+        if (port == "") {
+            port = "80";
+        }
+        var ws_uri = "ws://" + loc + ":" + port + "/logstream";
         var ws = new WebSocket(ws_uri);
 
         ws.onmessage = function(event) {
