@@ -104,16 +104,20 @@
             switch(proto) {
                 case "http:":
                     port = "80";
+                    break;
                 case "https:":
                     port = "443";
+                    break;
             }
         }
         var ws_proto
         switch(proto) {
                 case "http:":
                     ws_proto = "ws://";
+                    break;
                 case "https:":
                     ws_proto = "wss://";
+                    break;
         }
         var ws_uri = ws_proto + loc + ":" + port + "/logstream";
         var ws = new WebSocket(ws_uri);
