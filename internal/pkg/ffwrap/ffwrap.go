@@ -83,7 +83,7 @@ func ProbeMetadata(ctx context.Context, source string) (MediaMetadata, error) {
 	cmd := exec.CommandContext(ctx, ffprobebinary, args...)
 	sto, err := cmd.Output()
 	if err != nil && cmd.ProcessState.ExitCode() != 0 {
-		return MediaMetadata{}, fmt.Errorf("%q ffprobe unexpect output: %v or exit code: %q", source, err, cmd.ProcessState.ExitCode())
+		return MediaMetadata{}, fmt.Errorf("%q ffprobe unexpect output: %v or exit code: %d", source, err, cmd.ProcessState.ExitCode())
 	}
 
 	var ffp FfprobeOutput

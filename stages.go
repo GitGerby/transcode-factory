@@ -185,7 +185,7 @@ func updateSourceMetadata(tj *TranscodeJob) error {
 	rs := db.QueryRow(sq, tj.Id)
 	var s string
 	if err := rs.Scan(&s); err != nil {
-		return fmt.Errorf("failed to query source file for index %q: %q", tj.Id, err)
+		return fmt.Errorf("failed to query source file for index %d: %q", tj.Id, err)
 	}
 
 	fc, err := ffwrap.ProbeMetadata(ctx, s)
