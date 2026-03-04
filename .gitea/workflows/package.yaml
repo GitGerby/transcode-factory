@@ -3,6 +3,9 @@ name: Build and Package Chocolatey
 on:
   push:
     branch: main
+  pull_request_target:
+    types: [ closed ]
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
