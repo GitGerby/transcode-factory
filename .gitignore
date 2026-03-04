@@ -10,6 +10,8 @@
 # But not these files...
 !/.gitignore
 !/.github/**
+!/.gitea/workflows/*.yaml
+!/build/package/choco/tools/*.ps1
 
 !*.go
 !go.sum

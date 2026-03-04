@@ -1,0 +1,90 @@
+name: Build and Package Chocolatey
+
+on:
+  push:
+    branch: main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-package:
+    runs-on: ubuntu-latest
+    container:
+      image: git.keemun.somuchcrypto.com/gearnsc/ubuntu-padded-latest:latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+          with:
+            ref: main
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.26
+
+      - name: Build Windows executable
+        run: |
+          GOOS=windows GOARCH=amd64 go build -o transcode-factory.exe
+          ls -lh transcode-factory.exe
+
+      - name: Generate date-based version
+        id: version
+        run: |
+          # Generate version in YYYY.MMDD.mmss format
+          VERSION=$(date +"%Y.%m%d.%H%M%S")
+          echo "Generated version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Copy license file
+        run: |
+          mkdir -p build/package/choco/license/ && cp ./LICENSE build/package/choco/license/
+
+      - name: Copy executable to package
+        run: |
+          cp transcode-factory.exe build/package/choco/tools/
+          touch build/package/choco/tools/transcode-factory.exe.ignore
+
+      - name: Create Chocolatey.nuspec
+        run: |
+          # Update the nuspec to include Chocolatey-specific scripts
+          cat > build/package/choco/TranscodeFactory.nuspec << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
+            <metadata>
+              <id>TranscodeFactory</id>
+              <version>${{ steps.version.outputs.version }}</version>
+              <title>Transcode Factory</title>
+              <authors>GearnsC</authors>
+              <owners>GearnsC</owners>
+              <requireLicenseAcceptance>false</requireLicenseAcceptance>
+              <description>A media transcoding service for Windows</description>
+              <summary>Transcode Factory is a Windows service for media transcoding tasks</summary>
+              <projectUrl>https://github.com/gitgerby/transcode-factory</projectUrl>
+              <iconUrl>https://github.com/gitgerby/transcode-factory/raw/main/web/favicon.ico</iconUrl>
+              <licenseUrl>https://github.com/gitgerby/transcode-factory/blob/main/LICENSE</licenseUrl>
+              <tags>transcode media ffmpeg service windows</tags>
+            </metadata>
+            <files>
+              <file src="tools\**" target="tools" />
+              <file src="scripts\**" target="scripts" />
+              <file src="license\**" target="license" />
+            </files>
+          </package>
+          EOF
+
+      - name: Install Nuget
+        uses: nuget/setup-nuget@v2
+
+      - name: Package as NuGet
+        run: |
+          mkdir -p build/package/choco/scripts
+          mkdir -p build/artifacts
+          ls -lhR
+          nuget pack build/package/choco/TranscodeFactory.nuspec -Version ${{ steps.version.outputs.version }} -OutputDirectory build/artifacts
+
+      - name: Publish package
+        run: |
+          nuget push build/artifacts/*.nupkg -src ${{vars.PACKAGE_UPLOAD_URL}} -ApiKey ${{secrets.PACKAGE_TOKEN}} -NonInteractive
