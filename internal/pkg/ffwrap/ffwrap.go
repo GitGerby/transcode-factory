@@ -142,7 +142,7 @@ func FfmpegTranscode(ctx context.Context, tr TranscodeRequest) ([]string, error)
 
 	log, err := os.Create(tr.LogDestination)
 	if err != nil {
-		logger.Errorf("failed to start log file: %v", err)
+		logger.Errorf("failed to start log file at %q error: %v", tr.LogDestination, err)
 	}
 
 	cmd := exec.CommandContext(ctx, ffmpegbinary, args...)

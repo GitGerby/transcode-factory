@@ -349,9 +349,15 @@ func copyManager() {
 			}
 			if err := updateSourceMetadata(&tj); err != nil {
 				logger.Errorf("failed to update source metadata for job %d: %v", tj.Id, err)
+				return nil
 			}
 			if err := updateJobStatus(tj.Id, JOB_TRANSCODING); err != nil {
 				logger.Errorf("failed to update job: %d with error: %v", tj.Id, err)
+				return nil
+			}
+			if err := registerLogFile(&tj); err != nil {
+				logger.Errorf("failed to register log destination: %v", err)
+				return nil
 			}
 
 			args, err := ffwrap.FfmpegTranscode(ctx, tj.JobDefinition)
